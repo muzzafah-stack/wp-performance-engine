@@ -1,0 +1,5 @@
+{
+    "require": {
+        "soderlind/wordpress-github-updater": "^2.0"
+    }
+}

@@ -1,0 +1,38 @@
+{
+    "name": "soderlind/wordpress-github-updater",
+    "description": "Reusable GitHub updater helper for WordPress plugins, built on top of yahnis-elsts/plugin-update-checker",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Per Soderlind",
+            "homepage": "https://soderlind.no"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "yahnis-elsts/plugin-update-checker": "^5.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Soderlind\\WordPress\\": "src/"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "keywords": [
+        "wordpress",
+        "plugin",
+        "updater",
+        "github"
+    ],
+    "homepage": "https://github.com/soderlind/wordpress-plugin-github-updater",
+    "support": {
+        "issues": "https://github.com/soderlind/wordpress-plugin-github-updater/issues",
+        "source": "https://github.com/soderlind/wordpress-plugin-github-updater"
+    }
+}
