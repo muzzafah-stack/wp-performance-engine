@@ -29,6 +29,7 @@ class Dashboard {
 		add_action( 'wp_ajax_wppe_get_logs', array( $this, 'ajax_get_logs' ) );
 		add_action( 'wp_ajax_wppe_clear_logs', array( $this, 'ajax_clear_logs' ) );
 		add_action( 'wp_ajax_wppe_repair_plugin', array( $this, 'ajax_repair_plugin' ) );
+		add_action( 'wp_ajax_wppe_autotune_elementor', array( $this, 'ajax_autotune_elementor' ) );
 	}
 
 	public static function get_instance(): Dashboard {
@@ -218,6 +219,23 @@ class Dashboard {
 	}
 
 	/**
+	 * Handle AJAX auto-tuning of Elementor performance experiments.
+	 */
+	public function ajax_autotune_elementor(): void {
+		SecurityHelper::verify_nonce( 'wppe_admin_nonce' );
+		SecurityHelper::check_admin_capabilities();
+
+		$compat = \WPPE\Elementor\ElementorCompat::get_instance();
+		$result = $compat->auto_tune_experiments();
+
+		if ( $result['success'] ) {
+			wp_send_json_success( $result );
+		} else {
+			wp_send_json_error( $result );
+		}
+	}
+
+	/**
 	 * Parse log file and return unique errors/warnings and their counts.
 	 */
 	public function get_aggregated_logs(): array {
@@ -292,6 +310,17 @@ class Dashboard {
 		$settings->set( 'telemetry_opt_in', isset( $_POST['telemetry_opt_in'] ) );
 		$settings->set( 'failsafe_enabled', isset( $_POST['failsafe_enabled'] ) );
 
+		// Elementor Settings.
+		$settings->set( 'elementor_optimize_assets', isset( $_POST['elementor_optimize_assets'] ) );
+		$settings->set( 'elementor_optimize_dom', isset( $_POST['elementor_optimize_dom'] ) );
+		$settings->set( 'elementor_optimize_google_fonts', isset( $_POST['elementor_optimize_google_fonts'] ) );
+		$settings->set( 'elementor_remove_fa4_shim', isset( $_POST['elementor_remove_fa4_shim'] ) );
+		$settings->set( 'elementor_eicons_optimization', isset( $_POST['elementor_eicons_optimization'] ) );
+		$settings->set( 'elementor_smart_script_delay', isset( $_POST['elementor_smart_script_delay'] ) );
+		$settings->set( 'elementor_instant_mobile_menu', isset( $_POST['elementor_instant_mobile_menu'] ) );
+		$settings->set( 'elementor_disable_telemetry', isset( $_POST['elementor_disable_telemetry'] ) );
+		$settings->set( 'elementor_auto_enable_experiments', isset( $_POST['elementor_auto_enable_experiments'] ) );
+
 		// Inputs.
 		$settings->set( 'delay_timeout', (int) ( $_POST['delay_timeout'] ?? 5000 ) );
 		$settings->set( 'db_cleanup_revisions_retention', (int) ( $_POST['db_cleanup_revisions_retention'] ?? 10 ) );
@@ -355,6 +384,7 @@ class Dashboard {
 					<div class="wppe-nav-item" data-tab="conflicts">Conflict Inspector</div>
 					<div class="wppe-nav-item" data-tab="cache">Disk HTML Cache</div>
 					<div class="wppe-nav-item" data-tab="scripts">Scripts Optimizer</div>
+					<div class="wppe-nav-item" data-tab="elementor">Elementor Optimizer</div>
 					<div class="wppe-nav-item" data-tab="lcp">LCP Optimization</div>
 					<div class="wppe-nav-item" data-tab="speculation">Speculation rules</div>
 					<div class="wppe-nav-item" data-tab="database">DB Housekeeping</div>
@@ -519,6 +549,107 @@ class Dashboard {
 							<div class="wppe-form-row">
 								<label for="delay_allowlist">Script Delay Allowlist (Force Delay these scripts, bypasses auto classification)</label>
 								<textarea name="delay_allowlist" id="delay_allowlist" rows="4"><?php echo esc_textarea( $settings->get( 'delay_allowlist' ) ); ?></textarea>
+							</div>
+						</div>
+
+						<!-- Tab: Elementor & Pro Elements -->
+						<div class="wppe-tab-content" id="tab-elementor">
+							<h2><?php esc_html_e( 'Elementor & Pro Elements Performance Optimizer', 'wp-performance-engine' ); ?></h2>
+							<p><?php esc_html_e( 'Deep optimization layer tailored specifically for Elementor Core and Pro Elements (GPL Free Elementor Pro). Slashes JavaScript execution time, DOM depth, Google Fonts requests, and unused widget bloat with a 100% frontend visual fidelity guarantee.', 'wp-performance-engine' ); ?></p>
+
+							<?php
+							$el_compat = \WPPE\Elementor\ElementorCompat::get_instance();
+							$el_diagnostics = $el_compat->get_diagnostics();
+							$is_el_active = $el_compat->is_elementor_active();
+							$is_pro_active = $el_compat->is_pro_elements_active();
+							?>
+
+							<div class="wppe-grid" style="margin-bottom: 24px;">
+								<div class="wppe-card">
+									<h3>Elementor Core</h3>
+									<div class="wppe-card-metric" style="font-size: 20px;">
+										<?php if ( $is_el_active ) : ?>
+											<span class="wppe-badge wppe-badge-success">Active <?php echo esc_html( defined( 'ELEMENTOR_VERSION' ) ? 'v' . ELEMENTOR_VERSION : '' ); ?></span>
+										<?php else : ?>
+											<span class="wppe-badge wppe-badge-warning">Not Active</span>
+										<?php endif; ?>
+									</div>
+									<p style="font-size: 13px; color: var(--wppe-text-light); margin: 0;">Main Page Builder Engine</p>
+								</div>
+								<div class="wppe-card">
+									<h3>Pro Extension</h3>
+									<div class="wppe-card-metric" style="font-size: 20px;">
+										<?php if ( $is_pro_active ) : ?>
+											<span class="wppe-badge wppe-badge-info">Pro Elements v<?php echo esc_html( $el_compat->get_pro_version() ); ?> (GPL)</span>
+										<?php elseif ( $el_compat->is_elementor_pro_active() ) : ?>
+											<span class="wppe-badge wppe-badge-success">Elementor Pro v<?php echo esc_html( $el_compat->get_pro_version() ); ?></span>
+										<?php else : ?>
+											<span class="wppe-badge wppe-badge-warning">None Detected</span>
+										<?php endif; ?>
+									</div>
+									<p style="font-size: 13px; color: var(--wppe-text-light); margin: 0;">Pro Widgets & Theme Builder</p>
+								</div>
+								<div class="wppe-card">
+									<h3>Native Experiments</h3>
+									<div style="margin: 12px 0;">
+										<button type="button" class="wppe-btn wppe-btn-warning" id="wppe-autotune-el-btn" style="font-size: 13px; padding: 8px 14px; display: inline-flex; align-items: center; gap: 6px;">
+											<span class="dashicons dashicons-performance" style="font-size: 16px; width: 16px; height: 16px; margin-top: 2px;"></span>
+											Auto-Tune Experiments
+										</button>
+										<div id="wppe-autotune-status" style="margin-top: 8px; font-size: 12px;"></div>
+									</div>
+									<p style="font-size: 12px; color: var(--wppe-text-light); margin: 0;">Enables DOM Optimization, Asset Loading & SVG Icons</p>
+								</div>
+							</div>
+
+							<h3><?php esc_html_e( 'Elementor Optimization Modules', 'wp-performance-engine' ); ?></h3>
+
+							<div class="wppe-form-row">
+								<input type="checkbox" name="elementor_optimize_assets" id="elementor_optimize_assets" <?php checked( $settings->get( 'elementor_optimize_assets', true ) ); ?> />
+								<label style="display:inline;" for="elementor_optimize_assets"><strong>Prune Unused Pro Elements Widget Assets</strong></label>
+								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Automatically dequeues unneeded vendor scripts & stylesheets (such as Flatpickr datepicker, Lottie player, Share-links, Smartmenus) when those widgets are not present on the current page.</p>
+							</div>
+
+							<div class="wppe-form-row">
+								<input type="checkbox" name="elementor_smart_script_delay" id="elementor_smart_script_delay" <?php checked( $settings->get( 'elementor_smart_script_delay', true ) ); ?> />
+								<label style="display:inline;" for="elementor_smart_script_delay"><strong>Smart Idle Script Hydration (INP & TBT Booster)</strong></label>
+								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Defers heavy Elementor frontend JavaScript execution to browser idle time (requestIdleCallback) or user interaction. Reduces Total Blocking Time (TBT) to near 0ms without breaking layouts.</p>
+							</div>
+
+							<div class="wppe-form-row">
+								<input type="checkbox" name="elementor_instant_mobile_menu" id="elementor_instant_mobile_menu" <?php checked( $settings->get( 'elementor_instant_mobile_menu', true ) ); ?> />
+								<label style="display:inline;" for="elementor_instant_mobile_menu"><strong>Instant Mobile Hamburger Menu Fallback</strong></label>
+								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Injects a micro vanilla JS click handler ensuring mobile hamburger navigation menus open instantly with 0 latency even before full Elementor scripts finish hydrating.</p>
+							</div>
+
+							<div class="wppe-form-row">
+								<input type="checkbox" name="elementor_optimize_dom" id="elementor_optimize_dom" <?php checked( $settings->get( 'elementor_optimize_dom', true ) ); ?> />
+								<label style="display:inline;" for="elementor_optimize_dom"><strong>DOM & HTML Comment Cleaner</strong></label>
+								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Strips Elementor debug comments (&lt;!-- .elementor-element --&gt;) and compresses redundant whitespace between tags while strictly preserving scripts and preformatted code.</p>
+							</div>
+
+							<div class="wppe-form-row">
+								<input type="checkbox" name="elementor_optimize_google_fonts" id="elementor_optimize_google_fonts" <?php checked( $settings->get( 'elementor_optimize_google_fonts', true ) ); ?> />
+								<label style="display:inline;" for="elementor_optimize_google_fonts"><strong>Google Fonts Optimizer (display=swap + Preconnect)</strong></label>
+								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Injects preconnect resource hints and automatically appends <code>display=swap</code> to Elementor Google Font requests to eliminate render-blocking font stalls.</p>
+							</div>
+
+							<div class="wppe-form-row">
+								<input type="checkbox" name="elementor_remove_fa4_shim" id="elementor_remove_fa4_shim" <?php checked( $settings->get( 'elementor_remove_fa4_shim', true ) ); ?> />
+								<label style="display:inline;" for="elementor_remove_fa4_shim"><strong>Remove Obsolete Font Awesome 4 Shim</strong></label>
+								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Removes obsolete legacy Font Awesome 4 compatibility shim stylesheets and scripts that add unnecessary HTTP requests.</p>
+							</div>
+
+							<div class="wppe-form-row">
+								<input type="checkbox" name="elementor_disable_telemetry" id="elementor_disable_telemetry" <?php checked( $settings->get( 'elementor_disable_telemetry', true ) ); ?> />
+								<label style="display:inline;" for="elementor_disable_telemetry"><strong>Block Elementor Background Telemetry / Tracking</strong></label>
+								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Prevents background HTTP telemetry pings to tracker.elementor.com, saving server resources and external DNS requests.</p>
+							</div>
+
+							<div class="wppe-form-row">
+								<input type="checkbox" name="elementor_auto_enable_experiments" id="elementor_auto_enable_experiments" <?php checked( $settings->get( 'elementor_auto_enable_experiments', true ) ); ?> />
+								<label style="display:inline;" for="elementor_auto_enable_experiments"><strong>Auto-Enable Native Performance Experiments</strong></label>
+								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Automatically defaults Elementor core experiments (Optimized DOM, Asset Loading, CSS Loading, SVG Icons, Lazyload) to active via internal code filters.</p>
 							</div>
 						</div>
 

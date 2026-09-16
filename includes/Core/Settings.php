@@ -29,6 +29,15 @@ class Settings {
 		'db_cleanup_revisions_retention'  => 10,
 		'telemetry_opt_in'                => false,
 		'failsafe_enabled'                => true,
+		'elementor_optimize_assets'        => true,
+		'elementor_optimize_dom'           => true,
+		'elementor_optimize_google_fonts'  => true,
+		'elementor_remove_fa4_shim'        => true,
+		'elementor_eicons_optimization'    => true,
+		'elementor_smart_script_delay'     => true,
+		'elementor_instant_mobile_menu'    => true,
+		'elementor_disable_telemetry'      => true,
+		'elementor_auto_enable_experiments'=> true,
 	];
 
 	private array $encrypted_fields = [

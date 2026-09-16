@@ -231,4 +231,58 @@ document.addEventListener('DOMContentLoaded', function() {
 			});
 		});
 	});
+
+	// 6. Elementor Experiments Auto-Tuner
+	const autotuneBtn = document.getElementById('wppe-autotune-el-btn');
+	const autotuneStatus = document.getElementById('wppe-autotune-status');
+
+	if (autotuneBtn) {
+		autotuneBtn.addEventListener('click', function(e) {
+			e.preventDefault();
+			const originalBtnHtml = this.innerHTML;
+
+			this.disabled = true;
+			this.textContent = 'Auto-Tuning...';
+			if (autotuneStatus) {
+				autotuneStatus.textContent = 'Applying optimal Elementor performance experiments...';
+				autotuneStatus.className = 'wppe-badge wppe-badge-info';
+			}
+
+			const data = new FormData();
+			data.append('action', 'wppe_autotune_elementor');
+			data.append('_wpnonce', wppe_ajax.nonce);
+
+			fetch(ajaxurl, {
+				method: 'POST',
+				body: data
+			})
+			.then(response => response.json())
+			.then(res => {
+				autotuneBtn.disabled = false;
+				autotuneBtn.innerHTML = originalBtnHtml;
+				if (res.success) {
+					if (autotuneStatus) {
+						autotuneStatus.textContent = res.data.message;
+						autotuneStatus.className = 'wppe-badge wppe-badge-success';
+					}
+					alert(res.data.message);
+				} else {
+					if (autotuneStatus) {
+						autotuneStatus.textContent = res.data.message || 'Auto-tune failed.';
+						autotuneStatus.className = 'wppe-badge wppe-badge-danger';
+					}
+					alert(res.data.message || 'Auto-tune failed.');
+				}
+			})
+			.catch(err => {
+				autotuneBtn.disabled = false;
+				autotuneBtn.innerHTML = originalBtnHtml;
+				if (autotuneStatus) {
+					autotuneStatus.textContent = 'Request failed.';
+					autotuneStatus.className = 'wppe-badge wppe-badge-danger';
+				}
+				alert('Connection error occurred.');
+			});
+		});
+	}
 });

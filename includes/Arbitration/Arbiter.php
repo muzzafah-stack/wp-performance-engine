@@ -126,6 +126,15 @@ class Arbiter {
 				}
 				return self::OWNER_SELF; // We always expose our DB cleanup tools as self.
 
+			case 'elementor_optimizer':
+				if ( ! $profile['plugins']['elementor'] ) {
+					return self::OWNER_DISABLED;
+				}
+				if ( $settings->get( 'elementor_optimize_assets', true ) || $settings->get( 'elementor_smart_script_delay', true ) ) {
+					return self::OWNER_SELF;
+				}
+				return self::OWNER_DISABLED;
+
 			default:
 				return self::OWNER_UNKNOWN;
 		}
@@ -147,10 +156,11 @@ class Arbiter {
 	 */
 	public function get_conflict_diagnostics(): array {
 		$domains = [
-			'page_cache'         => [ 'label' => 'HTML Page Caching', 'our_setting' => 'enable_html_cache' ],
-			'js_delay'           => [ 'label' => 'JavaScript Delay Execution', 'our_setting' => 'enable_script_delay' ],
-			'speculation_rules'  => [ 'label' => 'Speculation Rules Prerendering', 'our_setting' => 'enable_speculation' ],
-			'lcp_priority'       => [ 'label' => 'LCP Image Priority (fetchpriority)', 'our_setting' => 'enable_lcp_priority' ],
+			'page_cache'          => [ 'label' => 'HTML Page Caching', 'our_setting' => 'enable_html_cache' ],
+			'js_delay'            => [ 'label' => 'JavaScript Delay Execution', 'our_setting' => 'enable_script_delay' ],
+			'speculation_rules'   => [ 'label' => 'Speculation Rules Prerendering', 'our_setting' => 'enable_speculation' ],
+			'lcp_priority'        => [ 'label' => 'LCP Image Priority (fetchpriority)', 'our_setting' => 'enable_lcp_priority' ],
+			'elementor_optimizer' => [ 'label' => 'Elementor & Pro Elements Optimization', 'our_setting' => 'elementor_optimize_assets' ],
 		];
 
 		$diagnostics = [];

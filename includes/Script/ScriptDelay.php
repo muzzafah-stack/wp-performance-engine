@@ -68,15 +68,25 @@ class ScriptDelay {
 	 * Classification helper to check if script is critical and should be excluded.
 	 */
 	public function classify_script( string $src_or_content ): string {
-		// Auto exclusions list (navigation-critical, accessibility, forms, Elementor core, WooCommerce, cookies).
+		$settings = Settings::get_instance();
+		$elementor_smart_delay = (bool) $settings->get( 'elementor_smart_script_delay', true );
+
+		// Auto exclusions list (navigation-critical, accessibility, forms, WooCommerce, cookies).
 		$critical_keywords = [
 			'jquery.min.js', 'jquery.js',
-			'elementor-frontend', 'elementor-pro', 'elementor-webpack',
 			'woocommerce', 'wc-cart', 'wc-add-to-cart',
 			'cookiebot', 'cookie-law-info', 'onetrust', 'complianz', 'consent',
 			'recaptcha', 'hcaptcha', 'wp-polyfill', 'wp-i18n',
 			'navigation', 'menu', 'search',
 		];
+
+		// If smart Elementor delay is disabled, treat Elementor frontend as critical.
+		if ( ! $elementor_smart_delay ) {
+			$critical_keywords[] = 'elementor-frontend';
+			$critical_keywords[] = 'elementor-pro';
+			$critical_keywords[] = 'pro-elements';
+			$critical_keywords[] = 'elementor-webpack';
+		}
 
 		foreach ( $critical_keywords as $keyword ) {
 			if ( false !== stripos( $src_or_content, $keyword ) ) {

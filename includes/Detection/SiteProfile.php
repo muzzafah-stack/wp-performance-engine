@@ -56,6 +56,7 @@ class SiteProfile {
 			'perfmatters'      => false,
 			'elementor'        => false,
 			'elementor_pro'    => false,
+			'pro_elements'     => false,
 			'woocommerce'      => false,
 			'wp_rocket'        => false,
 			'litespeed_cache'  => false,
@@ -77,6 +78,10 @@ class SiteProfile {
 			if ( false !== strpos( $plugin, 'elementor-pro/elementor-pro.php' ) ) {
 				$plugins_detected['elementor_pro'] = true;
 			}
+			if ( false !== strpos( $plugin, 'pro-elements' ) || false !== strpos( $plugin, 'proelements' ) ) {
+				$plugins_detected['pro_elements'] = true;
+				$plugins_detected['elementor_pro'] = true;
+			}
 			if ( false !== strpos( $plugin, 'woocommerce/woocommerce.php' ) ) {
 				$plugins_detected['woocommerce'] = true;
 			}
@@ -92,6 +97,17 @@ class SiteProfile {
 			if ( false !== strpos( $plugin, 'redis-cache' ) ) {
 				$plugins_detected['redis_cache'] = true;
 			}
+		}
+
+		// Runtime class/constant detection fallbacks.
+		if ( class_exists( '\Elementor\Plugin' ) || defined( 'ELEMENTOR_VERSION' ) ) {
+			$plugins_detected['elementor'] = true;
+		}
+		if ( defined( 'PRO_ELEMENTS_VERSION' ) || defined( 'PRO_ELEMENTS__FILE__' ) || class_exists( '\ProElements\Plugin' ) ) {
+			$plugins_detected['pro_elements'] = true;
+			$plugins_detected['elementor_pro'] = true;
+		} elseif ( class_exists( '\ElementorPro\Plugin' ) || defined( 'ELEMENTOR_PRO_VERSION' ) ) {
+			$plugins_detected['elementor_pro'] = true;
 		}
 
 		// Object cache detection.
