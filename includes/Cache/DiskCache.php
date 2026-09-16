@@ -106,6 +106,18 @@ class DiskCache {
 			}
 		}
 
+		// Bypass Salesloo dynamic cookies.
+		foreach ( $_COOKIE as $cookie_name => $cookie_val ) {
+			if ( strpos( $cookie_name, 'salesloo_' ) === 0 ) {
+				return true;
+			}
+		}
+
+		// Allow plugins to filter cache bypass dynamically.
+		if ( apply_filters( 'wppe_cache_should_bypass', false ) ) {
+			return true;
+		}
+
 		return false;
 	}
 

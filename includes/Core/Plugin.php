@@ -53,6 +53,7 @@ class Plugin {
 		$this->services['cloudflare']   = \WPPE\Cloudflare\CloudflareFree::get_instance();
 		$this->services['flyingpress']  = \WPPE\Compatibility\FlyingPressCompat::get_instance();
 		$this->services['perfmatters']  = \WPPE\Compatibility\PerfmattersCompat::get_instance();
+		$this->services['salesloo']     = \WPPE\Compatibility\SaleslooCompat::get_instance();
 
 		// Initialize WP-CLI commands if running CLI.
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {

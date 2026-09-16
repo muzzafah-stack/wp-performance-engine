@@ -88,6 +88,20 @@ class ScriptDelay {
 			$critical_keywords[] = 'elementor-webpack';
 		}
 
+		// Salesloo & Payment Gateway critical exclusions.
+		$critical_keywords[] = 'salesloo';
+		$critical_keywords[] = 'custom-salesloo';
+		$critical_keywords[] = 'midtrans';
+		$critical_keywords[] = 'snap.js';
+		$critical_keywords[] = 'snap.min.js';
+		$critical_keywords[] = 'tripay';
+		$critical_keywords[] = 'moota';
+		$critical_keywords[] = 'xendit';
+		$critical_keywords[] = 'duitku';
+
+		// Allow extensions to filter critical scripts.
+		$critical_keywords = apply_filters( 'wppe_critical_script_keywords', $critical_keywords );
+
 		foreach ( $critical_keywords as $keyword ) {
 			if ( false !== stripos( $src_or_content, $keyword ) ) {
 				return self::CLASSIFICATION_CRITICAL;

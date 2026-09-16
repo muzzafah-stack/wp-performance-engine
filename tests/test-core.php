@@ -34,6 +34,9 @@ namespace {
 	if ( ! defined( 'ELEMENTOR_VERSION' ) ) {
 		define( 'ELEMENTOR_VERSION', '3.20.0' );
 	}
+	if ( ! defined( 'SALESLOO_VERSION' ) ) {
+		define( 'SALESLOO_VERSION', '2.5.0' );
+	}
 
 	function wp_mkdir_p( $target ) {
 		if ( file_exists( $target ) ) {
@@ -76,6 +79,12 @@ namespace {
 		return true;
 	}
 	function add_filter( $hook, $callback, $priority = 10, $accepted_args = 1 ) {
+		return true;
+	}
+	function apply_filters( $hook, $value, ...$args ) {
+		return $value;
+	}
+	function do_action( $hook, ...$args ) {
 		return true;
 	}
 	function wp_parse_url( $url ) {
@@ -165,6 +174,7 @@ namespace {
 	require_once dirname( __DIR__ ) . '/includes/Elementor/ElementorDomOptimizer.php';
 	require_once dirname( __DIR__ ) . '/includes/Elementor/ElementorScriptOptimizer.php';
 	require_once dirname( __DIR__ ) . '/includes/Elementor/ElementorCompat.php';
+	require_once dirname( __DIR__ ) . '/includes/Compatibility/SaleslooCompat.php';
 
 	use WPPE\Security\SecurityHelper;
 	use WPPE\Cache\DiskCache;
@@ -175,6 +185,7 @@ namespace {
 	use WPPE\Elementor\ElementorAssetOptimizer;
 	use WPPE\Elementor\ElementorDomOptimizer;
 	use WPPE\Elementor\ElementorScriptOptimizer;
+	use WPPE\Compatibility\SaleslooCompat;
 
 	// Simple testing helper.
 	function assert_test( $name, $assertion ) {
@@ -281,6 +292,19 @@ namespace {
 	$autotune_res = $el_compat->auto_tune_experiments();
 	assert_test( 'ElementorCompat: Auto-Tune Experiments returns success', true === $autotune_res['success'] );
 
-	echo "=== All Tests Passed Successfully (10/10) ===\n";
+	// Test 11: Salesloo Detection & Compatibility
+	$salesloo = SaleslooCompat::get_instance();
+	assert_test( 'SaleslooCompat: Is Salesloo Active', $salesloo->is_salesloo_active() );
+
+	// Test 12: Salesloo Dynamic Page & Cookie Cache Bypass
+	$_SERVER['REQUEST_URI'] = '/checkout/order-123';
+	assert_test( 'SaleslooCompat: Dynamic Checkout Page Cache Bypass', true === $salesloo->filter_cache_bypass( false ) );
+	unset( $_SERVER['REQUEST_URI'] );
+
+	// Test 13: Salesloo Payment Gateways Critical Script Classification
+	assert_test( 'ScriptDelay: Salesloo Snap.js marked Critical (Zero delay for checkout)', $script_delay->classify_script( 'https://app.midtrans.com/snap/snap.js' ) === ScriptDelay::CLASSIFICATION_CRITICAL );
+	assert_test( 'ScriptDelay: Salesloo Checkout JS marked Critical', $script_delay->classify_script( 'salesloo-checkout.js' ) === ScriptDelay::CLASSIFICATION_CRITICAL );
+
+	echo "=== All Tests Passed Successfully (13/13) ===\n";
 	exit( 0 );
 }

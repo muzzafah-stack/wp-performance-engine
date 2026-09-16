@@ -57,6 +57,7 @@ class SiteProfile {
 			'elementor'        => false,
 			'elementor_pro'    => false,
 			'pro_elements'     => false,
+			'salesloo'         => false,
 			'woocommerce'      => false,
 			'wp_rocket'        => false,
 			'litespeed_cache'  => false,
@@ -81,6 +82,9 @@ class SiteProfile {
 			if ( false !== strpos( $plugin, 'pro-elements' ) || false !== strpos( $plugin, 'proelements' ) ) {
 				$plugins_detected['pro_elements'] = true;
 				$plugins_detected['elementor_pro'] = true;
+			}
+			if ( false !== strpos( $plugin, 'salesloo' ) || false !== strpos( $plugin, 'custom-salesloo' ) ) {
+				$plugins_detected['salesloo'] = true;
 			}
 			if ( false !== strpos( $plugin, 'woocommerce/woocommerce.php' ) ) {
 				$plugins_detected['woocommerce'] = true;
@@ -108,6 +112,9 @@ class SiteProfile {
 			$plugins_detected['elementor_pro'] = true;
 		} elseif ( class_exists( '\ElementorPro\Plugin' ) || defined( 'ELEMENTOR_PRO_VERSION' ) ) {
 			$plugins_detected['elementor_pro'] = true;
+		}
+		if ( class_exists( 'Salesloo' ) || class_exists( 'Custom_Salesloo' ) || defined( 'SALESLOO_VERSION' ) || defined( 'CUSTOM_SALESLOO_VERSION' ) ) {
+			$plugins_detected['salesloo'] = true;
 		}
 
 		// Object cache detection.
