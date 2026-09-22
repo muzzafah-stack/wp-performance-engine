@@ -88,8 +88,20 @@ class DiskCache {
 			return true;
 		}
 
-		// Bypass query parameter preview.
-		if ( isset( $_GET['preview'] ) ) {
+		// Bypass query parameter preview or Elementor Theme Builder & previews.
+		if ( isset( $_GET['preview'] ) || isset( $_GET['elementor-preview'] ) || isset( $_GET['elementor_library'] ) || isset( $_GET['elementor-template-type'] ) || isset( $_GET['preview_id'] ) ) {
+			return true;
+		}
+
+		// Bypass Elementor library templates (Theme Builder headers, footers, singles, archives).
+		if ( ( function_exists( 'is_singular' ) && is_singular( 'elementor_library' ) ) ||
+		     ( function_exists( 'get_post_type' ) && 'elementor_library' === get_post_type() ) ) {
+			return true;
+		}
+
+		// Bypass when inside Elementor editor or preview mode.
+		$elementor = \WPPE\Core\Plugin::get_instance()->get_service( 'elementor' );
+		if ( $elementor && method_exists( $elementor, 'is_editor_or_preview' ) && $elementor->is_editor_or_preview() ) {
 			return true;
 		}
 

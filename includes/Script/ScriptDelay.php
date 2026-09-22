@@ -41,13 +41,23 @@ class ScriptDelay {
 			return false;
 		}
 
-		if ( is_admin() || ( defined( 'DOING_AJAX' ) && DOING_AJAX ) || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
+		if ( is_admin() || ( defined( 'DOING_AJAX' ) && DOING_AJAX ) || ( defined( 'DOING_CRON' ) && DOING_CRON ) || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
 			return false;
 		}
 
-		// Don't delay inside Elementor preview/editor.
+		// Don't delay inside Elementor preview/editor/Theme Builder.
 		$elementor = \WPPE\Core\Plugin::get_instance()->get_service( 'elementor' );
 		if ( $elementor && method_exists( $elementor, 'is_editor_or_preview' ) && $elementor->is_editor_or_preview() ) {
+			return false;
+		}
+
+		// Don't delay on elementor_library post types or preview queries.
+		if ( ( function_exists( 'is_singular' ) && is_singular( 'elementor_library' ) ) ||
+		     ( function_exists( 'get_post_type' ) && 'elementor_library' === get_post_type() ) ) {
+			return false;
+		}
+
+		if ( isset( $_GET['elementor-preview'] ) || isset( $_GET['elementor_library'] ) || isset( $_GET['elementor-template-type'] ) || isset( $_GET['preview_id'] ) ) {
 			return false;
 		}
 
@@ -71,13 +81,14 @@ class ScriptDelay {
 		$settings = Settings::get_instance();
 		$elementor_smart_delay = (bool) $settings->get( 'elementor_smart_script_delay', true );
 
-		// Auto exclusions list (navigation-critical, accessibility, forms, WooCommerce, cookies).
+		// Auto exclusions list (navigation-critical, accessibility, forms, WooCommerce, cookies, Theme Builder).
 		$critical_keywords = [
 			'jquery.min.js', 'jquery.js',
 			'woocommerce', 'wc-cart', 'wc-add-to-cart',
 			'cookiebot', 'cookie-law-info', 'onetrust', 'complianz', 'consent',
 			'recaptcha', 'hcaptcha', 'wp-polyfill', 'wp-i18n',
 			'navigation', 'menu', 'search',
+			'elementor-app', 'theme-builder', 'elementor-common',
 		];
 
 		// If smart Elementor delay is disabled, treat Elementor frontend as critical.

@@ -73,6 +73,9 @@ class SpeculationRules {
 			'/*\\?*action=*', // logout, delete, edit links
 			'/*\\?*add-to-cart=*',
 			'/*\\?*wc-ajax=*',
+			'/*\\?*elementor-preview=*',
+			'/*\\?*elementor_library=*',
+			'/*\\?*elementor-template-type=*',
 			'/*\\.xml',
 			'/*\\.pdf',
 			'/*\\.zip',

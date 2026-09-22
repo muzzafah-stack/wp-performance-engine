@@ -33,12 +33,18 @@ class ElementorDomOptimizer {
 			return false;
 		}
 
-		if ( is_admin() || ( defined( 'DOING_AJAX' ) && DOING_AJAX ) || ( defined( 'DOING_CRON' ) && DOING_CRON ) ) {
+		if ( is_admin() || ( defined( 'DOING_AJAX' ) && DOING_AJAX ) || ( defined( 'DOING_CRON' ) && DOING_CRON ) || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
 			return false;
 		}
 
 		$compat = ElementorCompat::get_instance();
 		if ( ! $compat->is_elementor_active() || $compat->is_editor_or_preview() ) {
+			return false;
+		}
+
+		// Never compress or strip comments on Theme Builder templates (Header, Footer, Single Post, Archive).
+		if ( ( function_exists( 'is_singular' ) && is_singular( 'elementor_library' ) ) ||
+		     ( function_exists( 'get_post_type' ) && 'elementor_library' === get_post_type() ) ) {
 			return false;
 		}
 

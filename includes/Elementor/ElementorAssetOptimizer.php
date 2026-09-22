@@ -142,6 +142,17 @@ class ElementorAssetOptimizer {
 	 * Inspect page widget usage and dequeue unused Pro Elements / Elementor Pro scripts and styles.
 	 */
 	private function prune_unused_pro_widget_assets(): void {
+		$compat = ElementorCompat::get_instance();
+		if ( $compat->is_editor_or_preview() ) {
+			return;
+		}
+
+		// Never prune assets when editing or viewing Theme Builder templates (Header, Footer, Single Post, Archive, etc.).
+		if ( ( function_exists( 'is_singular' ) && is_singular( 'elementor_library' ) ) ||
+		     ( function_exists( 'get_post_type' ) && 'elementor_library' === get_post_type() ) ) {
+			return;
+		}
+
 		if ( ! is_singular() ) {
 			return;
 		}
@@ -164,11 +175,6 @@ class ElementorAssetOptimizer {
 		$has_lottie       = ( false !== strpos( $data_str, '"widgetType":"lottie"' ) );
 		$has_share_btn    = ( false !== strpos( $data_str, '"widgetType":"share-buttons"' ) );
 		$has_nav_menu     = ( false !== strpos( $data_str, '"widgetType":"nav-menu"' ) );
-		$has_animated_head= ( false !== strpos( $data_str, '"widgetType":"animated-headline"' ) );
-		$has_price_table  = ( false !== strpos( $data_str, '"widgetType":"price-table"' ) );
-		$has_flip_box     = ( false !== strpos( $data_str, '"widgetType":"flip-box"' ) );
-		$has_countdown    = ( false !== strpos( $data_str, '"widgetType":"countdown"' ) );
-		$has_gallery      = ( false !== strpos( $data_str, '"widgetType":"gallery"' ) || false !== strpos( $data_str, '"widgetType":"media-carousel"' ) );
 
 		// Prune Form Datepicker & Flatpickr if no form widget.
 		if ( ! $has_form ) {
@@ -182,14 +188,16 @@ class ElementorAssetOptimizer {
 			wp_dequeue_script( 'lottie-player' );
 		}
 
-		// Prune Share Buttons script if no share button widget.
-		if ( ! $has_share_btn ) {
-			wp_dequeue_script( 'share-link' );
-		}
-
-		// Prune SmartMenus if no nav-menu widget.
-		if ( ! $has_nav_menu ) {
-			wp_dequeue_script( 'smartmenus' );
+		// When Pro Elements or Elementor Pro Theme Builder is active, headers and footers are injected
+		// from separate template posts. Only prune if Pro Elements Theme Builder is not active.
+		$is_pro_active = $compat->is_pro_elements_active() || $compat->is_elementor_pro_active();
+		if ( ! $is_pro_active ) {
+			if ( ! $has_share_btn ) {
+				wp_dequeue_script( 'share-link' );
+			}
+			if ( ! $has_nav_menu ) {
+				wp_dequeue_script( 'smartmenus' );
+			}
 		}
 	}
 

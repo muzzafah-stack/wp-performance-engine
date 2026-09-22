@@ -70,24 +70,97 @@ class ElementorCompat {
 	}
 
 	/**
-	 * Check if the current request is inside Elementor Editor or Preview.
+	 * Check if the current request is inside Elementor Editor, Preview, Theme Builder, or Elementor REST/AJAX context.
 	 */
 	public function is_editor_or_preview(): bool {
 		if ( ! $this->is_elementor_active() ) {
 			return false;
 		}
 
-		if ( isset( $_GET['elementor-preview'] ) || ( isset( $_GET['action'] ) && 'elementor' === $_GET['action'] ) ) {
+		// 1. Direct GET / POST / REQUEST preview & editor parameters.
+		if ( isset( $_GET['elementor-preview'] ) || isset( $_POST['elementor-preview'] ) || isset( $_REQUEST['elementor-preview'] ) ) {
 			return true;
 		}
 
-		if ( class_exists( '\Elementor\Plugin' ) && isset( \Elementor\Plugin::$instance ) && isset( \Elementor\Plugin::$instance->editor ) ) {
-			if ( \Elementor\Plugin::$instance->editor->is_edit_mode() || ( isset( \Elementor\Plugin::$instance->preview ) && \Elementor\Plugin::$instance->preview->is_preview_mode() ) ) {
+		if ( isset( $_GET['action'] ) && 'elementor' === $_GET['action'] ) {
+			return true;
+		}
+
+		// 2. Elementor Theme Builder App / SPA & Library administration.
+		if ( isset( $_GET['page'] ) && 'elementor-app' === $_GET['page'] ) {
+			return true;
+		}
+
+		if ( isset( $_GET['post_type'] ) && 'elementor_library' === $_GET['post_type'] ) {
+			return true;
+		}
+
+		// 3. Theme Builder template query parameters & previews (Header, Footer, Single, Archive).
+		$tb_params = [
+			'elementor_library',
+			'elementor-template-type',
+			'elementor_theme_builder_preview',
+			'elementor_pro_theme_builder_conditions',
+			'theme_builder',
+			'preview_nonce',
+		];
+		foreach ( $tb_params as $param ) {
+			if ( isset( $_GET[ $param ] ) || isset( $_POST[ $param ] ) ) {
 				return true;
 			}
 		}
 
-		return false;
+		if ( isset( $_GET['preview_id'] ) && ( isset( $_GET['preview'] ) || isset( $_GET['preview_nonce'] ) ) ) {
+			return true;
+		}
+
+		// 4. Elementor Library singular post type query.
+		if ( ( function_exists( 'is_singular' ) && is_singular( 'elementor_library' ) ) ||
+		     ( function_exists( 'get_post_type' ) && 'elementor_library' === get_post_type() ) ) {
+			return true;
+		}
+
+		// 5. Elementor native Plugin runtime check.
+		if ( class_exists( '\Elementor\Plugin' ) && isset( \Elementor\Plugin::$instance ) ) {
+			if ( isset( \Elementor\Plugin::$instance->editor ) && \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
+				return true;
+			}
+			if ( isset( \Elementor\Plugin::$instance->preview ) ) {
+				if ( \Elementor\Plugin::$instance->preview->is_preview_mode() ) {
+					return true;
+				}
+				if ( method_exists( \Elementor\Plugin::$instance->preview, 'is_preview' ) && \Elementor\Plugin::$instance->preview->is_preview() ) {
+					return true;
+				}
+			}
+			if ( isset( \Elementor\Plugin::$instance->documents ) && method_exists( \Elementor\Plugin::$instance->documents, 'get_current' ) ) {
+				$doc = \Elementor\Plugin::$instance->documents->get_current();
+				if ( $doc && method_exists( $doc, 'is_built_with_elementor' ) && $doc->is_built_with_elementor() ) {
+					if ( ( isset( $_GET['action'] ) && 'elementor' === $_GET['action'] ) || ( isset( $_GET['preview'] ) ) ) {
+						return true;
+					}
+				}
+			}
+		}
+
+		// 6. Elementor / Pro Elements AJAX requests.
+		if ( ( defined( 'DOING_AJAX' ) && DOING_AJAX ) || ( function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) ) {
+			$ajax_action = $_REQUEST['action'] ?? '';
+			if ( false !== strpos( $ajax_action, 'elementor' ) || false !== strpos( $ajax_action, 'pro_elements' ) ) {
+				return true;
+			}
+		}
+
+		// 7. Elementor / Pro Elements REST API requests.
+		$request_uri = $_SERVER['REQUEST_URI'] ?? '';
+		if ( false !== strpos( $request_uri, '/wp-json/elementor/' ) ||
+		     false !== strpos( $request_uri, '/wp-json/elementor-pro/' ) ||
+		     false !== strpos( $request_uri, '/wp-json/pro-elements/' ) ||
+		     false !== strpos( $request_uri, '/site-editor/' ) ) {
+			return true;
+		}
+
+		return (bool) apply_filters( 'wppe_is_elementor_editor_or_preview', false );
 	}
 
 	/**
@@ -107,6 +180,10 @@ class ElementorCompat {
 	public function filter_elementor_experiments( array $features ): array {
 		$settings = Settings::get_instance();
 		if ( ! $settings->get( 'elementor_auto_enable_experiments', true ) ) {
+			return $features;
+		}
+
+		if ( $this->is_editor_or_preview() ) {
 			return $features;
 		}
 

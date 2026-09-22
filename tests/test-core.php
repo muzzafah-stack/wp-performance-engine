@@ -100,8 +100,19 @@ namespace {
 		$sep = ( false !== strpos( $url, '?' ) ) ? '&' : '?';
 		return $url . $sep . $key . '=' . $val;
 	}
-	function is_singular() {
-		return true;
+	$GLOBALS['mock_post_type'] = 'post';
+	function is_singular( $post_types = '' ) {
+		if ( empty( $post_types ) ) {
+			return true;
+		}
+		$current = $GLOBALS['mock_post_type'] ?? 'post';
+		if ( is_array( $post_types ) ) {
+			return in_array( $current, $post_types, true );
+		}
+		return $current === $post_types;
+	}
+	function get_post_type( $post = null ) {
+		return $GLOBALS['mock_post_type'] ?? 'post';
 	}
 	function get_the_ID() {
 		return 42;
@@ -305,6 +316,46 @@ namespace {
 	assert_test( 'ScriptDelay: Salesloo Snap.js marked Critical (Zero delay for checkout)', $script_delay->classify_script( 'https://app.midtrans.com/snap/snap.js' ) === ScriptDelay::CLASSIFICATION_CRITICAL );
 	assert_test( 'ScriptDelay: Salesloo Checkout JS marked Critical', $script_delay->classify_script( 'salesloo-checkout.js' ) === ScriptDelay::CLASSIFICATION_CRITICAL );
 
-	echo "=== All Tests Passed Successfully (13/13) ===\n";
+	// Test 14: Theme Builder SPA App Detection (elementor-app)
+	$_GET['page'] = 'elementor-app';
+	assert_test( 'ElementorCompat: Theme Builder SPA App Detected as editor/preview context', true === $el_compat->is_editor_or_preview() );
+	unset( $_GET['page'] );
+
+	// Test 15: Theme Builder Template Preview Parameters (Header, Footer, Single-Post, Archive)
+	$_GET['elementor-template-type'] = 'header';
+	assert_test( 'ElementorCompat: Theme Builder Template Type Detected', true === $el_compat->is_editor_or_preview() );
+	unset( $_GET['elementor-template-type'] );
+
+	$_GET['elementor_library'] = 'header-template-1';
+	assert_test( 'ElementorCompat: Elementor Library Query Detected', true === $el_compat->is_editor_or_preview() );
+
+	// Test 16: Elementor & Pro Elements REST API Detection
+	$_SERVER['REQUEST_URI'] = '/wp-json/elementor/v1/site-editor/templates';
+	assert_test( 'ElementorCompat: Elementor Site Editor REST API Detected', true === $el_compat->is_editor_or_preview() );
+	unset( $_SERVER['REQUEST_URI'] );
+
+	// Test 17: DiskCache Theme Builder Bypass
+	$_GET['elementor-preview'] = '42';
+	assert_test( 'DiskCache: Theme Builder & Elementor Preview Cache Bypass', true === $cache->should_bypass() );
+	unset( $_GET['elementor-preview'] );
+	unset( $_GET['elementor_library'] );
+
+	// Test 18: ScriptDelay Theme Builder Bypass
+	$_GET['elementor_theme_builder_preview'] = '1';
+	assert_test( 'ScriptDelay: Theme Builder Preview Bypasses Script Delay', false === $script_delay->should_delay() );
+	unset( $_GET['elementor_theme_builder_preview'] );
+
+	// Test 19: Theme Builder Scripts Classified as Critical
+	assert_test( 'ScriptDelay: Theme Builder Scripts Marked Critical', $script_delay->classify_script( 'theme-builder.min.js' ) === ScriptDelay::CLASSIFICATION_CRITICAL );
+	assert_test( 'ScriptDelay: Elementor App Scripts Marked Critical', $script_delay->classify_script( 'elementor-app.js' ) === ScriptDelay::CLASSIFICATION_CRITICAL );
+
+	// Test 20: Elementor Library Post Type Bypass (Header, Footer, Single-Post, Archive editing)
+	$GLOBALS['mock_post_type'] = 'elementor_library';
+	assert_test( 'ElementorCompat: elementor_library Post Type Detected', true === $el_compat->is_editor_or_preview() );
+	assert_test( 'DiskCache: elementor_library Post Type Bypasses Cache', true === $cache->should_bypass() );
+	assert_test( 'ScriptDelay: elementor_library Post Type Bypasses Script Delay', false === $script_delay->should_delay() );
+	$GLOBALS['mock_post_type'] = 'post';
+
+	echo "=== All Tests Passed Successfully (20/20) ===\n";
 	exit( 0 );
 }

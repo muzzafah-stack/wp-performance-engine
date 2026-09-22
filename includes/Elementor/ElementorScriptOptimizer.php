@@ -93,13 +93,11 @@ class ElementorScriptOptimizer {
 			return;
 		}
 
-		// List of handles we can safely defer.
+		// List of handles we can safely defer (exclude synchronous core modules like elementor-frontend-modules and elementor-dialog).
 		$defer_handles = [
 			'elementor-waypoints',
-			'elementor-dialog',
 			'share-link',
 			'elementor-pro-notes-frontend',
-			'elementor-frontend-modules',
 		];
 
 		foreach ( $defer_handles as $handle ) {
@@ -128,7 +126,7 @@ class ElementorScriptOptimizer {
 		}
 
 		// Add defer if handle matches and not already deferred.
-		if ( in_array( $handle, [ 'elementor-waypoints', 'elementor-dialog', 'share-link' ], true ) ) {
+		if ( in_array( $handle, [ 'elementor-waypoints', 'share-link' ], true ) ) {
 			if ( false === strpos( $tag, 'defer' ) && false === strpos( $tag, 'async' ) ) {
 				$tag = str_replace( '<script ', '<script defer ', $tag );
 			}
