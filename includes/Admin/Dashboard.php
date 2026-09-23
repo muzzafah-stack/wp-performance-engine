@@ -327,8 +327,8 @@ class Dashboard {
 		$settings->set( 'speculation_mode', sanitize_text_field( $_POST['speculation_mode'] ?? 'balanced' ) );
 
 		// Encryption fields (Cloudflare).
-		$settings->set( 'cloudflare_api_token', trim( sanitize_text_field( $_POST['cloudflare_api_token'] ?? '' ) ) );
-		$settings->set( 'cloudflare_zone_id', trim( sanitize_text_field( $_POST['cloudflare_zone_id'] ?? '' ) ) );
+		$settings->set( 'cloudflare_api_token', CloudflareFree::sanitize_token( sanitize_text_field( $_POST['cloudflare_api_token'] ?? '' ) ) );
+		$settings->set( 'cloudflare_zone_id', CloudflareFree::sanitize_zone_id( sanitize_text_field( $_POST['cloudflare_zone_id'] ?? '' ) ) );
 
 		// Textareas.
 		$settings->set( 'cache_exclusions', sanitize_textarea_field( $_POST['cache_exclusions'] ?? '' ) );

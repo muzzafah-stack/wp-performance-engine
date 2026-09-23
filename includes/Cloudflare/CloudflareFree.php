@@ -30,12 +30,32 @@ class CloudflareFree {
 	}
 
 	/**
+	 * Clean and normalize API Token (removes "Bearer ", quotes, or curl syntax).
+	 */
+	public static function sanitize_token( string $token ): string {
+		$token = trim( $token );
+		if ( preg_match( '/Bearer\s+([A-Za-z0-9_\-]+)/i', $token, $matches ) ) {
+			$token = $matches[1];
+		}
+		$token = preg_replace( '/^Bearer\s+/i', '', $token );
+		return trim( $token, "\"' \t\n\r\0\x0B" );
+	}
+
+	/**
+	 * Clean and normalize Zone ID (removes quotes and whitespace).
+	 */
+	public static function sanitize_zone_id( string $zone_id ): string {
+		$zone_id = trim( $zone_id );
+		return trim( $zone_id, "\"' \t\n\r\0\x0B" );
+	}
+
+	/**
 	 * Check if Cloudflare connection settings are set.
 	 */
 	public function is_configured(): bool {
 		$settings = Settings::get_instance();
-		$token = trim( (string) $settings->get( 'cloudflare_api_token', '' ) );
-		$zone_id = trim( (string) $settings->get( 'cloudflare_zone_id', '' ) );
+		$token = self::sanitize_token( (string) $settings->get( 'cloudflare_api_token', '' ) );
+		$zone_id = self::sanitize_zone_id( (string) $settings->get( 'cloudflare_zone_id', '' ) );
 		return ! empty( $token ) && ! empty( $zone_id );
 	}
 
@@ -45,8 +65,8 @@ class CloudflareFree {
 	 */
 	public function test_connection(): array {
 		$settings = Settings::get_instance();
-		$token = trim( (string) $settings->get( 'cloudflare_api_token', '' ) );
-		$zone_id = trim( (string) $settings->get( 'cloudflare_zone_id', '' ) );
+		$token = self::sanitize_token( (string) $settings->get( 'cloudflare_api_token', '' ) );
+		$zone_id = self::sanitize_zone_id( (string) $settings->get( 'cloudflare_zone_id', '' ) );
 
 		if ( empty( $token ) || empty( $zone_id ) ) {
 			return [
@@ -237,8 +257,8 @@ class CloudflareFree {
 	 */
 	private function send_purge_request( array $payload ): bool {
 		$settings = Settings::get_instance();
-		$token = trim( (string) $settings->get( 'cloudflare_api_token', '' ) );
-		$zone_id = trim( (string) $settings->get( 'cloudflare_zone_id', '' ) );
+		$token = self::sanitize_token( (string) $settings->get( 'cloudflare_api_token', '' ) );
+		$zone_id = self::sanitize_zone_id( (string) $settings->get( 'cloudflare_zone_id', '' ) );
 
 		if ( empty( $token ) || empty( $zone_id ) ) {
 			return false;
