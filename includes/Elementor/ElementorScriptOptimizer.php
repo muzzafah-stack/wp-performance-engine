@@ -53,6 +53,7 @@ class ElementorScriptOptimizer {
 
 	/**
 	 * Get the fast mobile menu inline script string.
+	 * Supports classic .elementor-menu-toggle and modern .e-n-menu-toggle (Nested Menu).
 	 */
 	public function get_fast_mobile_menu_script_tag(): string {
 		return '
@@ -61,18 +62,38 @@ class ElementorScriptOptimizer {
 	if (window.wppeFastMenuInitialized) return;
 	window.wppeFastMenuInitialized = true;
 	document.addEventListener("click", function(e) {
+		// Classic Elementor Nav Menu
 		var toggle = e.target.closest(".elementor-menu-toggle");
-		if (!toggle) return;
-		var widget = toggle.closest(".elementor-widget-nav-menu");
-		if (!widget) return;
-		var dropdown = widget.querySelector(".elementor-nav-menu--dropdown");
-		if (!dropdown) return;
-		var isOpen = toggle.classList.contains("elementor-active");
-		toggle.classList.toggle("elementor-active", !isOpen);
-		toggle.setAttribute("aria-expanded", !isOpen ? "true" : "false");
-		dropdown.classList.toggle("elementor-active", !isOpen);
-		if (dropdown.style.display === "block" || (!isOpen && dropdown.classList.contains("elementor-active"))) {
-			dropdown.style.display = isOpen ? "none" : "block";
+		if (toggle) {
+			var widget = toggle.closest(".elementor-widget-nav-menu, .elementor-widget");
+			if (widget) {
+				var dropdown = widget.querySelector(".elementor-nav-menu--dropdown");
+				if (dropdown) {
+					var isOpen = toggle.classList.contains("elementor-active");
+					toggle.classList.toggle("elementor-active", !isOpen);
+					toggle.setAttribute("aria-expanded", !isOpen ? "true" : "false");
+					dropdown.classList.toggle("elementor-active", !isOpen);
+					if (dropdown.style.display === "block" || (!isOpen && dropdown.classList.contains("elementor-active"))) {
+						dropdown.style.display = isOpen ? "none" : "block";
+					}
+				}
+			}
+			return;
+		}
+
+		// Modern Nested Menu Toggle (.e-n-menu-toggle)
+		var nestedToggle = e.target.closest(".e-n-menu-toggle");
+		if (nestedToggle) {
+			var nWidget = nestedToggle.closest(".elementor-widget-nested-menu, .elementor-widget-n-menu, .e-n-menu");
+			if (nWidget) {
+				var nWrapper = nWidget.querySelector(".e-n-menu-wrapper");
+				if (nWrapper) {
+					var isNOpen = nestedToggle.getAttribute("aria-expanded") === "true";
+					nestedToggle.setAttribute("aria-expanded", isNOpen ? "false" : "true");
+					nestedToggle.classList.toggle("e-active", !isNOpen);
+					nWrapper.classList.toggle("e-active", !isNOpen);
+				}
+			}
 		}
 	}, { passive: true });
 })();

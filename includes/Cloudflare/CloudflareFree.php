@@ -34,25 +34,67 @@ class CloudflareFree {
 	 */
 	public function is_configured(): bool {
 		$settings = Settings::get_instance();
-		$token = $settings->get( 'cloudflare_api_token', '' );
-		$zone_id = $settings->get( 'cloudflare_zone_id', '' );
+		$token = trim( (string) $settings->get( 'cloudflare_api_token', '' ) );
+		$zone_id = trim( (string) $settings->get( 'cloudflare_zone_id', '' ) );
 		return ! empty( $token ) && ! empty( $zone_id );
 	}
 
 	/**
 	 * Perform a connection test with the API token and Zone ID.
+	 * Includes 2-step verification: Token validation & Zone permission test.
 	 */
 	public function test_connection(): array {
 		$settings = Settings::get_instance();
-		$token = $settings->get( 'cloudflare_api_token', '' );
-		$zone_id = $settings->get( 'cloudflare_zone_id', '' );
+		$token = trim( (string) $settings->get( 'cloudflare_api_token', '' ) );
+		$zone_id = trim( (string) $settings->get( 'cloudflare_zone_id', '' ) );
 
 		if ( empty( $token ) || empty( $zone_id ) ) {
-			return [ 'success' => false, 'message' => __( 'Missing token or Zone ID.', 'wp-performance-engine' ) ];
+			return [
+				'success' => false,
+				'message' => __( 'Missing Cloudflare API Token or Zone ID. Please enter both fields.', 'wp-performance-engine' ),
+			];
 		}
 
-		$url = sprintf( 'https://api.cloudflare.com/client/v4/zones/%s', $zone_id );
-		$response = wp_remote_get( $url, [
+		// Validate Zone ID format (32-character hexadecimal string).
+		if ( false !== strpos( $zone_id, '.' ) ) {
+			return [
+				'success' => false,
+				'message' => __( 'Invalid Zone ID format: You entered a domain name. Please enter the 32-character hex Zone ID from Cloudflare Overview.', 'wp-performance-engine' ),
+			];
+		}
+
+		if ( ! preg_match( '/^[a-f0-9]{32}$/i', $zone_id ) ) {
+			return [
+				'success' => false,
+				'message' => __( 'Invalid Zone ID format: Cloudflare Zone ID must be a 32-character hexadecimal string (e.g. 1a2b3c4d...). Ensure you did not enter an Account ID or Global API Key.', 'wp-performance-engine' ),
+			];
+		}
+
+		// Step 1: Verify token validity via Cloudflare verify endpoint.
+		$verify_url = 'https://api.cloudflare.com/client/v4/user/tokens/verify';
+		$verify_res = wp_remote_get( $verify_url, [
+			'headers' => [
+				'Authorization' => 'Bearer ' . $token,
+				'Content-Type'  => 'application/json',
+			],
+			'timeout' => 10,
+		]);
+
+		if ( ! is_wp_error( $verify_res ) ) {
+			$verify_code = wp_remote_retrieve_response_code( $verify_res );
+			$verify_body = json_decode( wp_remote_retrieve_body( $verify_res ), true );
+
+			if ( 401 === $verify_code || ( isset( $verify_body['success'] ) && ! $verify_body['success'] && 1000 === ( $verify_body['errors'][0]['code'] ?? 0 ) ) ) {
+				return [
+					'success' => false,
+					'message' => __( 'Authentication Failed: API Token is invalid or expired. Ensure you created a Cloudflare "API Token" (Bearer Token) and not a "Global API Key".', 'wp-performance-engine' ),
+				];
+			}
+		}
+
+		// Step 2: Query the specific Zone ID with the token.
+		$zone_url = sprintf( 'https://api.cloudflare.com/client/v4/zones/%s', $zone_id );
+		$response = wp_remote_get( $zone_url, [
 			'headers' => [
 				'Authorization' => 'Bearer ' . $token,
 				'Content-Type'  => 'application/json',
@@ -61,18 +103,67 @@ class CloudflareFree {
 		]);
 
 		if ( is_wp_error( $response ) ) {
-			return [ 'success' => false, 'message' => $response->get_error_message() ];
+			return [
+				'success' => false,
+				'message' => sprintf( __( 'HTTP Request Error: %s', 'wp-performance-engine' ), $response->get_error_message() ),
+			];
 		}
 
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 		$code = wp_remote_retrieve_response_code( $response );
 
 		if ( 200 === $code && isset( $body['success'] ) && $body['success'] ) {
-			return [ 'success' => true, 'message' => __( 'Connected successfully to Cloudflare!', 'wp-performance-engine' ) ];
+			$zone_name   = $body['result']['name'] ?? 'Domain';
+			$zone_status = $body['result']['status'] ?? 'active';
+			$zone_plan   = $body['result']['plan']['name'] ?? 'Free';
+
+			return [
+				'success' => true,
+				'message' => sprintf(
+					__( 'Connected successfully to Cloudflare! Zone: %s (Status: %s, Plan: %s).', 'wp-performance-engine' ),
+					$zone_name,
+					ucfirst( $zone_status ),
+					$zone_plan
+				),
+			];
 		}
 
-		$error_message = $body['errors'][0]['message'] ?? __( 'Unknown error connecting to Cloudflare.', 'wp-performance-engine' );
-		return [ 'success' => false, 'message' => $error_message ];
+		// Parse error codes for actionable guidance.
+		$error_item = $body['errors'][0] ?? [];
+		$cf_err_code = $error_item['code'] ?? 0;
+		$cf_err_msg  = $error_item['message'] ?? __( 'Unknown error connecting to Cloudflare.', 'wp-performance-engine' );
+
+		if ( 7003 === $cf_err_code || 7000 === $cf_err_code || 1001 === $cf_err_code ) {
+			return [
+				'success' => false,
+				'message' => sprintf(
+					__( 'Cloudflare Error %d: Zone ID not found. Verify you copied the Zone ID from your domain Overview (not the Account ID).', 'wp-performance-engine' ),
+					$cf_err_code
+				),
+			];
+		}
+
+		if ( 9109 === $cf_err_code || 10000 === $cf_err_code ) {
+			return [
+				'success' => false,
+				'message' => sprintf(
+					__( 'Cloudflare Error %d: Unauthorized. The token is valid but lacks permissions for this Zone or is blocked by Client IP Filtering. Check that Zone Resources includes your domain and permissions have "Zone: Read" and "Cache Purge: Purge".', 'wp-performance-engine' ),
+					$cf_err_code
+				),
+			];
+		}
+
+		if ( 6003 === $cf_err_code ) {
+			return [
+				'success' => false,
+				'message' => __( 'Cloudflare Error 6003: Invalid request headers. Ensure you entered an API Token with Bearer format.', 'wp-performance-engine' ),
+			];
+		}
+
+		return [
+			'success' => false,
+			'message' => sprintf( __( 'Cloudflare Error (%d): %s', 'wp-performance-engine' ), $cf_err_code, $cf_err_msg ),
+		];
 	}
 
 	/**
@@ -146,8 +237,12 @@ class CloudflareFree {
 	 */
 	private function send_purge_request( array $payload ): bool {
 		$settings = Settings::get_instance();
-		$token = $settings->get( 'cloudflare_api_token', '' );
-		$zone_id = $settings->get( 'cloudflare_zone_id', '' );
+		$token = trim( (string) $settings->get( 'cloudflare_api_token', '' ) );
+		$zone_id = trim( (string) $settings->get( 'cloudflare_zone_id', '' ) );
+
+		if ( empty( $token ) || empty( $zone_id ) ) {
+			return false;
+		}
 
 		$url = sprintf( 'https://api.cloudflare.com/client/v4/zones/%s/purge_cache', $zone_id );
 		$response = wp_remote_post( $url, [
@@ -172,7 +267,8 @@ class CloudflareFree {
 		}
 
 		$error_message = $body['errors'][0]['message'] ?? 'Unknown error response';
-		Logger::error( sprintf( 'Cloudflare purge API returned error (code %d): %s', $code, $error_message ) );
+		$error_code    = $body['errors'][0]['code'] ?? $code;
+		Logger::error( sprintf( 'Cloudflare purge API returned error (code %s): %s', $error_code, $error_message ) );
 		return false;
 	}
 }

@@ -174,7 +174,7 @@ class ElementorAssetOptimizer {
 		$has_form         = ( false !== strpos( $data_str, '"widgetType":"form"' ) );
 		$has_lottie       = ( false !== strpos( $data_str, '"widgetType":"lottie"' ) );
 		$has_share_btn    = ( false !== strpos( $data_str, '"widgetType":"share-buttons"' ) );
-		$has_nav_menu     = ( false !== strpos( $data_str, '"widgetType":"nav-menu"' ) );
+		$has_nav_menu     = ( false !== strpos( $data_str, '"widgetType":"nav-menu"' ) || false !== strpos( $data_str, '"widgetType":"nested-menu"' ) || false !== strpos( $data_str, '"widgetType":"mega-menu"' ) );
 
 		// Prune Form Datepicker & Flatpickr if no form widget.
 		if ( ! $has_form ) {

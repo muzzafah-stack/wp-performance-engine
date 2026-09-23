@@ -327,8 +327,8 @@ class Dashboard {
 		$settings->set( 'speculation_mode', sanitize_text_field( $_POST['speculation_mode'] ?? 'balanced' ) );
 
 		// Encryption fields (Cloudflare).
-		$settings->set( 'cloudflare_api_token', sanitize_text_field( $_POST['cloudflare_api_token'] ?? '' ) );
-		$settings->set( 'cloudflare_zone_id', sanitize_text_field( $_POST['cloudflare_zone_id'] ?? '' ) );
+		$settings->set( 'cloudflare_api_token', trim( sanitize_text_field( $_POST['cloudflare_api_token'] ?? '' ) ) );
+		$settings->set( 'cloudflare_zone_id', trim( sanitize_text_field( $_POST['cloudflare_zone_id'] ?? '' ) ) );
 
 		// Textareas.
 		$settings->set( 'cache_exclusions', sanitize_textarea_field( $_POST['cache_exclusions'] ?? '' ) );
@@ -727,11 +727,12 @@ class Dashboard {
 							<div class="wppe-form-row">
 								<label for="cloudflare_api_token">Cloudflare API Token</label>
 								<input type="password" name="cloudflare_api_token" id="cloudflare_api_token" value="<?php echo esc_attr( $display_token ); ?>" />
-								<p class="description">Requires <strong>Zone: Cache Purge</strong> permissions. Do not use your Global API Key.</p>
+								<p class="description">Gunakan <strong>API Token</strong> (Bearer format), bukan Global API Key. Izin yang wajib: <strong>Zone &rarr; Zone: Read</strong> dan <strong>Zone &rarr; Cache Purge: Purge</strong>. Pastikan Zone Resources mencakup domain Anda.</p>
 							</div>
 							<div class="wppe-form-row">
 								<label for="cloudflare_zone_id">Cloudflare Zone ID</label>
 								<input type="text" name="cloudflare_zone_id" id="cloudflare_zone_id" value="<?php echo esc_attr( $settings->get( 'cloudflare_zone_id' ) ); ?>" />
+								<p class="description">Salin <strong>Zone ID</strong> 32-karakter dari halaman Overview domain Anda di Cloudflare (bukan Account ID).</p>
 							</div>
 							<div class="wppe-form-row">
 								<button type="button" class="wppe-btn" id="wppe-cf-test-btn">Test Connection</button>

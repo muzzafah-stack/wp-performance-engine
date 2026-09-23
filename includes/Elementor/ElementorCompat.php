@@ -20,8 +20,10 @@ class ElementorCompat {
 			ElementorDomOptimizer::get_instance();
 			ElementorScriptOptimizer::get_instance();
 
-			// Cache invalidation listener.
+			// Cache invalidation listeners for Elementor Core & Elementor Pro.
 			add_action( 'elementor/core/files/clear_cache', array( $this, 'on_elementor_clear_cache' ) );
+			add_action( 'elementor/element_cache/clear_cache', array( $this, 'on_elementor_clear_cache' ) );
+			add_action( 'elementor/editor/after_save', array( $this, 'on_elementor_editor_save' ), 10, 2 );
 
 			// Auto-tune experimental features filter if enabled.
 			add_filter( 'elementor/experiments/default_features', array( $this, 'filter_elementor_experiments' ), 10, 1 );
@@ -82,7 +84,7 @@ class ElementorCompat {
 			return true;
 		}
 
-		if ( isset( $_GET['action'] ) && 'elementor' === $_GET['action'] ) {
+		if ( isset( $_GET['action'] ) && in_array( $_GET['action'], [ 'elementor', 'elementor_ajax' ], true ) ) {
 			return true;
 		}
 
@@ -95,7 +97,7 @@ class ElementorCompat {
 			return true;
 		}
 
-		// 3. Theme Builder template query parameters & previews (Header, Footer, Single, Archive).
+		// 3. Theme Builder template query parameters & previews (Header, Footer, Single, Archive, Floating).
 		$tb_params = [
 			'elementor_library',
 			'elementor-template-type',
@@ -151,7 +153,7 @@ class ElementorCompat {
 			}
 		}
 
-		// 7. Elementor / Pro Elements REST API requests.
+		// 7. Elementor / Pro Elements REST API requests (including site-editor, templates, and AI routes).
 		$request_uri = $_SERVER['REQUEST_URI'] ?? '';
 		if ( false !== strpos( $request_uri, '/wp-json/elementor/' ) ||
 		     false !== strpos( $request_uri, '/wp-json/elementor-pro/' ) ||
@@ -164,15 +166,34 @@ class ElementorCompat {
 	}
 
 	/**
-	 * Purge entire cache when Elementor clears its CSS files.
+	 * Purge entire cache when Elementor clears its CSS or Element cache.
 	 */
 	public function on_elementor_clear_cache(): void {
 		\WPPE\Cache\DiskCache::purge_entire_cache();
-		Logger::info( 'Elementor cleared CSS cache. WP Performance Engine disk cache purged.' );
+		
+		// Also synchronize purge with Cloudflare if configured.
+		$cf = \WPPE\Cloudflare\CloudflareFree::get_instance();
+		if ( $cf->is_configured() ) {
+			$cf->purge_everything();
+		}
+
+		Logger::info( 'Elementor cleared cache. WP Performance Engine disk cache and Cloudflare synchronized.' );
+	}
+
+	/**
+	 * Purge post cache when saved in Elementor Editor.
+	 *
+	 * @param int   $post_id Post ID.
+	 * @param mixed $editor_data Editor data.
+	 */
+	public function on_elementor_editor_save( int $post_id, $editor_data = null ): void {
+		\WPPE\Cache\DiskCache::purge_post_cache( $post_id );
+		Logger::info( sprintf( 'Elementor saved post #%d. Post cache purged and Cloudflare sync queued.', $post_id ) );
 	}
 
 	/**
 	 * Auto-tune Elementor default experimental features via filter.
+	 * Supports newest Elementor 3.20 - 3.24+ experiments.
 	 *
 	 * @param array $features Array of experimental features.
 	 * @return array
@@ -193,6 +214,9 @@ class ElementorCompat {
 			'e_optimized_css_loading',
 			'e_font_icon_svg',
 			'e_lazyload_images',
+			'e_lazyload_background_images',
+			'e_optimized_control_loading',
+			'e_element_cache',
 		];
 
 		foreach ( $tune_keys as $key ) {
@@ -217,12 +241,15 @@ class ElementorCompat {
 			];
 		}
 
-		// Activate native performance experiments.
+		// Activate native performance experiments (Elementor Core & Pro latest).
 		update_option( 'elementor_experiment-e_dom_optimization', 'active' );
 		update_option( 'elementor_experiment-e_optimized_assets_loading', 'active' );
 		update_option( 'elementor_experiment-e_optimized_css_loading', 'active' );
 		update_option( 'elementor_experiment-e_font_icon_svg', 'active' );
 		update_option( 'elementor_experiment-e_lazyload_images', 'active' );
+		update_option( 'elementor_experiment-e_lazyload_background_images', 'active' );
+		update_option( 'elementor_experiment-e_optimized_control_loading', 'active' );
+		update_option( 'elementor_experiment-e_element_cache', 'active' );
 
 		// Set CSS print method to external file for maximum cacheability.
 		update_option( 'elementor_css_print_method', 'external' );
@@ -232,11 +259,11 @@ class ElementorCompat {
 			\Elementor\Plugin::$instance->files_manager->clear_cache();
 		}
 
-		Logger::info( 'Auto-tuned Elementor native experiments to optimal performance settings.' );
+		Logger::info( 'Auto-tuned Elementor native experiments to optimal performance settings (including Element Caching & Control Loading).' );
 
 		return [
 			'success' => true,
-			'message' => __( 'Elementor performance experiments successfully auto-tuned (DOM optimization, Asset loading, CSS loading, SVG icons, and Lazy loading enabled).', 'wp-performance-engine' ),
+			'message' => __( 'Elementor performance experiments successfully auto-tuned (DOM optimization, Asset loading, CSS loading, SVG icons, Lazy loading background images, Optimized control loading, and Element Caching enabled).', 'wp-performance-engine' ),
 		];
 	}
 
@@ -263,11 +290,14 @@ class ElementorCompat {
 		}
 
 		$experiments = [
-			'e_dom_optimization'         => get_option( 'elementor_experiment-e_dom_optimization', 'default' ),
-			'e_optimized_assets_loading' => get_option( 'elementor_experiment-e_optimized_assets_loading', 'default' ),
-			'e_optimized_css_loading'    => get_option( 'elementor_experiment-e_optimized_css_loading', 'default' ),
-			'e_font_icon_svg'            => get_option( 'elementor_experiment-e_font_icon_svg', 'default' ),
-			'e_lazyload_images'          => get_option( 'elementor_experiment-e_lazyload_images', 'default' ),
+			'e_dom_optimization'           => get_option( 'elementor_experiment-e_dom_optimization', 'default' ),
+			'e_optimized_assets_loading'   => get_option( 'elementor_experiment-e_optimized_assets_loading', 'default' ),
+			'e_optimized_css_loading'      => get_option( 'elementor_experiment-e_optimized_css_loading', 'default' ),
+			'e_font_icon_svg'              => get_option( 'elementor_experiment-e_font_icon_svg', 'default' ),
+			'e_lazyload_images'            => get_option( 'elementor_experiment-e_lazyload_images', 'default' ),
+			'e_lazyload_background_images' => get_option( 'elementor_experiment-e_lazyload_background_images', 'default' ),
+			'e_optimized_control_loading'  => get_option( 'elementor_experiment-e_optimized_control_loading', 'default' ),
+			'e_element_cache'              => get_option( 'elementor_experiment-e_element_cache', 'default' ),
 		];
 
 		return [

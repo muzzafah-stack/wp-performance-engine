@@ -170,6 +170,43 @@ namespace {
 	function get_stylesheet() {
 		return 'twentytwentyfour';
 	}
+	function is_wp_error( $thing ) {
+		return false;
+	}
+	function wp_remote_retrieve_response_code( $response ) {
+		return $response['response']['code'] ?? 200;
+	}
+	function wp_remote_retrieve_body( $response ) {
+		return $response['body'] ?? '';
+	}
+	function wp_remote_get( $url, $args = [] ) {
+		if ( false !== strpos( $url, 'tokens/verify' ) ) {
+			return [
+				'response' => [ 'code' => 200 ],
+				'body'     => json_encode( [ 'success' => true, 'result' => [ 'status' => 'active' ] ] ),
+			];
+		}
+		if ( false !== strpos( $url, 'zones/' ) ) {
+			return [
+				'response' => [ 'code' => 200 ],
+				'body'     => json_encode( [
+					'success' => true,
+					'result'  => [
+						'name'   => 'example.com',
+						'status' => 'active',
+						'plan'   => [ 'name' => 'Free Website' ],
+					],
+				] ),
+			];
+		}
+		return [ 'response' => [ 'code' => 200 ], 'body' => '' ];
+	}
+	function wp_remote_post( $url, $args = [] ) {
+		return [
+			'response' => [ 'code' => 200 ],
+			'body'     => json_encode( [ 'success' => true ] ),
+		];
+	}
 
 	// Load classes.
 	require_once dirname( __DIR__ ) . '/includes/Security/SecurityHelper.php';
@@ -181,6 +218,7 @@ namespace {
 	require_once dirname( __DIR__ ) . '/includes/Cache/DiskCache.php';
 	require_once dirname( __DIR__ ) . '/includes/Script/ScriptDelay.php';
 	require_once dirname( __DIR__ ) . '/includes/LCP/LCPPriority.php';
+	require_once dirname( __DIR__ ) . '/includes/Cloudflare/CloudflareFree.php';
 	require_once dirname( __DIR__ ) . '/includes/Elementor/ElementorAssetOptimizer.php';
 	require_once dirname( __DIR__ ) . '/includes/Elementor/ElementorDomOptimizer.php';
 	require_once dirname( __DIR__ ) . '/includes/Elementor/ElementorScriptOptimizer.php';
@@ -192,6 +230,7 @@ namespace {
 	use WPPE\Script\ScriptDelay;
 	use WPPE\LCP\LCPPriority;
 	use WPPE\Detection\SiteProfile;
+	use WPPE\Cloudflare\CloudflareFree;
 	use WPPE\Elementor\ElementorCompat;
 	use WPPE\Elementor\ElementorAssetOptimizer;
 	use WPPE\Elementor\ElementorDomOptimizer;
@@ -356,6 +395,26 @@ namespace {
 	assert_test( 'ScriptDelay: elementor_library Post Type Bypasses Script Delay', false === $script_delay->should_delay() );
 	$GLOBALS['mock_post_type'] = 'post';
 
-	echo "=== All Tests Passed Successfully (20/20) ===\n";
+	// Test 21: CloudflareFree Validation - Invalid Zone ID (Domain name or wrong length)
+	\WPPE\Core\Settings::get_instance()->set( 'cloudflare_api_token', 'valid-mock-token-abc12345' );
+	\WPPE\Core\Settings::get_instance()->set( 'cloudflare_zone_id', 'example.com' );
+	$cf_instance = CloudflareFree::get_instance();
+	$cf_test_invalid = $cf_instance->test_connection();
+	assert_test( 'CloudflareFree: Domain name as Zone ID detected as invalid', false === $cf_test_invalid['success'] && false !== strpos( $cf_test_invalid['message'], 'domain name' ) );
+
+	// Test 22: CloudflareFree Validation - Valid 32-char hex Zone ID
+	\WPPE\Core\Settings::get_instance()->set( 'cloudflare_zone_id', 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6' );
+	$cf_test_valid = $cf_instance->test_connection();
+	assert_test( 'CloudflareFree: Valid 32-char hex Zone ID connected successfully', true === $cf_test_valid['success'] );
+
+	// Test 23: ElementorScriptOptimizer - Modern Nested Menu Toggle
+	assert_test( 'ElementorScriptOptimizer: Fast mobile menu supports modern .e-n-menu-toggle', false !== strpos( $fast_menu_tag, '.e-n-menu-toggle' ) );
+
+	// Test 24: Elementor Diagnostics - New Experiments
+	$diag = $el_compat->get_diagnostics();
+	assert_test( 'ElementorCompat: Diagnostics includes e_element_cache', array_key_exists( 'e_element_cache', $diag['experiments'] ) );
+	assert_test( 'ElementorCompat: Diagnostics includes e_optimized_control_loading', array_key_exists( 'e_optimized_control_loading', $diag['experiments'] ) );
+
+	echo "=== All Tests Passed Successfully (24/24) ===\n";
 	exit( 0 );
 }
