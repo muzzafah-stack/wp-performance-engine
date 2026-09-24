@@ -64,6 +64,8 @@ class SiteProfile {
 			'autoptimize'      => false,
 			'redis_cache'      => false,
 			'memcached_cache'  => false,
+			'navora'           => false,
+			'wp_contentkit'    => false,
 		];
 
 		foreach ( $active_plugins as $plugin ) {
@@ -101,6 +103,12 @@ class SiteProfile {
 			if ( false !== strpos( $plugin, 'redis-cache' ) ) {
 				$plugins_detected['redis_cache'] = true;
 			}
+			if ( false !== strpos( $plugin, 'navora' ) ) {
+				$plugins_detected['navora'] = true;
+			}
+			if ( false !== strpos( $plugin, 'wp-contentkit' ) || false !== strpos( $plugin, 'contentkit' ) ) {
+				$plugins_detected['wp_contentkit'] = true;
+			}
 		}
 
 		// Runtime class/constant detection fallbacks.
@@ -115,6 +123,12 @@ class SiteProfile {
 		}
 		if ( class_exists( 'Salesloo' ) || class_exists( 'Custom_Salesloo' ) || defined( 'SALESLOO_VERSION' ) || defined( 'CUSTOM_SALESLOO_VERSION' ) ) {
 			$plugins_detected['salesloo'] = true;
+		}
+		if ( class_exists( 'Navora' ) || defined( 'NAVORA_VERSION' ) ) {
+			$plugins_detected['navora'] = true;
+		}
+		if ( class_exists( 'WP_ContentKit\Plugin' ) || defined( 'WP_CONTENTKIT_VERSION' ) ) {
+			$plugins_detected['wp_contentkit'] = true;
 		}
 
 		// Object cache detection.

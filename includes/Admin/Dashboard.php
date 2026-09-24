@@ -20,7 +20,8 @@ class Dashboard {
 	private static ?Dashboard $instance = null;
 
 	private function __construct() {
-		add_action( 'admin_menu', array( $this, 'register_menu' ) );
+		add_action( 'admin_menu', array( $this, 'register_menu' ), 20 );
+		add_action( 'admin_notices', array( $this, 'render_failsafe_notice' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 
 		// Ajax actions.
@@ -30,6 +31,7 @@ class Dashboard {
 		add_action( 'wp_ajax_wppe_clear_logs', array( $this, 'ajax_clear_logs' ) );
 		add_action( 'wp_ajax_wppe_repair_plugin', array( $this, 'ajax_repair_plugin' ) );
 		add_action( 'wp_ajax_wppe_autotune_elementor', array( $this, 'ajax_autotune_elementor' ) );
+		add_action( 'wp_ajax_wppe_reset_failsafe', array( $this, 'ajax_reset_failsafe' ) );
 	}
 
 	public static function get_instance(): Dashboard {
@@ -60,7 +62,96 @@ class Dashboard {
 		wp_enqueue_script( 'wppe-admin-js', WPPE_PLUGIN_URL . 'assets/js/admin.js', [], WPPE_VERSION, true );
 
 		wp_localize_script( 'wppe-admin-js', 'wppe_ajax', [
-			'nonce' => wp_create_nonce( 'wppe_admin_nonce' ),
+			'nonce'   => wp_create_nonce( 'wppe_admin_nonce' ),
+			'ajaxurl' => admin_url( 'admin-ajax.php' ),
+		]);
+	}
+
+	/**
+	 * Render Failsafe Alert Banner in WordPress Admin.
+	 */
+	public function render_failsafe_notice(): void {
+		if ( ! \WPPE\Core\Failsafe::is_triggered() ) {
+			return;
+		}
+
+		$dashboard_url = admin_url( 'admin.php?page=wp-performance-engine' );
+		$nonce = wp_create_nonce( 'wppe_admin_nonce' );
+		?>
+		<div class="notice notice-warning is-dismissible wppe-failsafe-notice-box" style="border-left: 4px solid #f59e0b; padding: 14px 18px; background: #fffbeb; margin: 15px 0;">
+			<div style="display: flex; align-items: flex-start; gap: 12px;">
+				<span class="dashicons dashicons-warning" style="color: #d97706; font-size: 24px; width: 24px; height: 24px; margin-top: 2px;"></span>
+				<div>
+					<h3 style="margin: 0 0 6px 0; color: #92400e; font-size: 15px; font-weight: 600;">
+						<?php esc_html_e( 'WP Performance Engine: Mode Failsafe Sedang Aktif', 'wp-performance-engine' ); ?>
+					</h3>
+					<p style="margin: 0 0 10px 0; color: #78350f; font-size: 13px; line-height: 1.5;">
+						<?php esc_html_e( 'Mesin optimasi frontend sementara dipause demi menjaga stabilitas situs setelah terdeteksi error pada request sebelumnya (seperti saat penyimpanan template Elementor). Perbaikan kode telah diterapkan.', 'wp-performance-engine' ); ?>
+					</p>
+					<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+						<button type="button" class="button button-primary wppe-reset-failsafe-btn" data-nonce="<?php echo esc_attr( $nonce ); ?>" style="background: #f59e0b; border-color: #d97706; color: #ffffff; font-weight: 600;">
+							<?php esc_html_e( 'Reset Failsafe & Aktifkan Mesin Optimasi', 'wp-performance-engine' ); ?>
+						</button>
+						<a href="<?php echo esc_url( $dashboard_url ); ?>" class="button button-secondary">
+							<?php esc_html_e( 'Buka Dashboard WP Performance Engine', 'wp-performance-engine' ); ?>
+						</a>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script>
+		document.addEventListener('DOMContentLoaded', function() {
+			var btns = document.querySelectorAll('.wppe-reset-failsafe-btn');
+			btns.forEach(function(btn) {
+				btn.addEventListener('click', function(e) {
+					e.preventDefault();
+					var nonce = this.getAttribute('data-nonce') || (typeof wppe_ajax !== 'undefined' ? wppe_ajax.nonce : '');
+					var originalText = this.textContent;
+					this.disabled = true;
+					this.textContent = 'Mereset...';
+
+					var data = new FormData();
+					data.append('action', 'wppe_reset_failsafe');
+					data.append('_wpnonce', nonce);
+
+					fetch(<?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>, {
+						method: 'POST',
+						body: data
+					})
+					.then(function(res) { return res.json(); })
+					.then(function(json) {
+						if (json.success) {
+							alert(json.data.message || 'Failsafe berhasil di-reset!');
+							window.location.reload();
+						} else {
+							alert(json.data.message || 'Gagal mereset failsafe.');
+							btn.disabled = false;
+							btn.textContent = originalText;
+						}
+					})
+					.catch(function() {
+						alert('Terjadi kesalahan koneksi.');
+						btn.disabled = false;
+						btn.textContent = originalText;
+					});
+				});
+			});
+		});
+		</script>
+		<?php
+	}
+
+	/**
+	 * AJAX method to reset failsafe state.
+	 */
+	public function ajax_reset_failsafe(): void {
+		SecurityHelper::verify_nonce( 'wppe_admin_nonce' );
+		SecurityHelper::check_admin_capabilities();
+
+		\WPPE\Core\Failsafe::reset();
+
+		wp_send_json_success([
+			'message' => __( 'Mode Failsafe berhasil di-reset! Seluruh mesin optimasi performa aktif kembali.', 'wp-performance-engine' ),
 		]);
 	}
 
@@ -343,6 +434,12 @@ class Dashboard {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Entire HTML cache directory purged successfully.', 'wp-performance-engine' ) . '</p></div>';
 		}
 
+		// Handle manual failsafe reset if button clicked.
+		if ( isset( $_POST['wppe_reset_failsafe_post'] ) ) {
+			\WPPE\Core\Failsafe::reset();
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Mode Failsafe berhasil di-reset. Mesin optimasi aktif kembali.', 'wp-performance-engine' ) . '</p></div>';
+		}
+
 		echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Settings saved successfully.', 'wp-performance-engine' ) . '</p></div>';
 	}
 
@@ -401,6 +498,21 @@ class Dashboard {
 						<div class="wppe-tab-content active" id="tab-overview">
 							<h2><?php esc_html_e( 'Performance Health Overview', 'wp-performance-engine' ); ?></h2>
 							<div class="wppe-grid">
+								<div class="wppe-card">
+									<h3>Engine Status</h3>
+									<div class="wppe-card-metric" style="font-size: 16px; margin-top: 4px;">
+										<?php if ( \WPPE\Core\Failsafe::is_triggered() ) : ?>
+											<span class="wppe-badge wppe-badge-danger" style="display:inline-block; margin-bottom: 6px;">Failsafe Mode (Paused)</span>
+											<div>
+												<button type="submit" name="wppe_reset_failsafe_post" value="1" class="wppe-btn wppe-btn-warning" style="font-size: 11px; padding: 4px 8px;">
+													Reset Failsafe Mode
+												</button>
+											</div>
+										<?php else : ?>
+											<span class="wppe-badge wppe-badge-success">Active & Optimal</span>
+										<?php endif; ?>
+									</div>
+								</div>
 								<div class="wppe-card">
 									<h3>Cache Hits</h3>
 									<div class="wppe-card-metric"><?php echo esc_html( $telemetry['cache_hits'] ); ?></div>
@@ -471,6 +583,26 @@ class Dashboard {
 								<tr>
 									<td><strong>Cron Tasks Enqueued</strong></td>
 									<td><?php echo esc_html( $profile['cron_load'] ); ?></td>
+								</tr>
+								<tr>
+									<td><strong>Navora Navigation</strong></td>
+									<td>
+										<?php if ( ! empty( $profile['plugins']['navora'] ) ) : ?>
+											<span class="wppe-badge wppe-badge-success">Active (Companion)</span>
+										<?php else : ?>
+											<span class="wppe-badge wppe-badge-info">Not Active</span>
+										<?php endif; ?>
+									</td>
+								</tr>
+								<tr>
+									<td><strong>WP ContentKit</strong></td>
+									<td>
+										<?php if ( ! empty( $profile['plugins']['wp_contentkit'] ) ) : ?>
+											<span class="wppe-badge wppe-badge-success">Active (Companion)</span>
+										<?php else : ?>
+											<span class="wppe-badge wppe-badge-info">Not Active</span>
+										<?php endif; ?>
+									</td>
 								</tr>
 							</table>
 						</div>

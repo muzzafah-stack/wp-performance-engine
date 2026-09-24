@@ -110,6 +110,14 @@ class ScriptDelay {
 		$critical_keywords[] = 'xendit';
 		$critical_keywords[] = 'duitku';
 
+		// Navora & WP ContentKit companion plugin exclusions.
+		$critical_keywords[] = 'navora';
+		$critical_keywords[] = 'navora-public';
+		$critical_keywords[] = 'wp-contentkit';
+		$critical_keywords[] = 'wpck';
+		$critical_keywords[] = 'toc-frontend';
+		$critical_keywords[] = 'classic-editor-modal';
+
 		// Allow extensions to filter critical scripts.
 		$critical_keywords = apply_filters( 'wppe_critical_script_keywords', $critical_keywords );
 

@@ -285,4 +285,42 @@ document.addEventListener('DOMContentLoaded', function() {
 			});
 		});
 	}
+
+	// 7. Reset Failsafe Action
+	const resetFailsafeBtns = document.querySelectorAll('.wppe-reset-failsafe-btn');
+	resetFailsafeBtns.forEach(btn => {
+		btn.addEventListener('click', function(e) {
+			e.preventDefault();
+			const originalText = this.textContent;
+			this.disabled = true;
+			this.textContent = 'Resetting...';
+
+			const data = new FormData();
+			data.append('action', 'wppe_reset_failsafe');
+			data.append('_wpnonce', typeof wppe_ajax !== 'undefined' ? wppe_ajax.nonce : (this.getAttribute('data-nonce') || ''));
+
+			const ajaxEndpoint = typeof ajaxurl !== 'undefined' ? ajaxurl : (typeof wppe_ajax !== 'undefined' ? wppe_ajax.ajaxurl : '/wp-admin/admin-ajax.php');
+
+			fetch(ajaxEndpoint, {
+				method: 'POST',
+				body: data
+			})
+			.then(response => response.json())
+			.then(res => {
+				if (res.success) {
+					alert(res.data.message || 'Failsafe mode successfully reset!');
+					window.location.reload();
+				} else {
+					alert(res.data.message || 'Failed to reset failsafe.');
+					btn.disabled = false;
+					btn.textContent = originalText;
+				}
+			})
+			.catch(err => {
+				alert('Connection error occurred.');
+				btn.disabled = false;
+				btn.textContent = originalText;
+			});
+		});
+	});
 });

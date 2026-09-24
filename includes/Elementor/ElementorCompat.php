@@ -187,8 +187,21 @@ class ElementorCompat {
 	 * @param mixed $editor_data Editor data.
 	 */
 	public function on_elementor_editor_save( int $post_id, $editor_data = null ): void {
-		\WPPE\Cache\DiskCache::purge_post_cache( $post_id );
-		Logger::info( sprintf( 'Elementor saved post #%d. Post cache purged and Cloudflare sync queued.', $post_id ) );
+		$post_type = get_post_type( $post_id );
+		
+		// If saved post is an Elementor Theme Builder template (single-post, header, footer, archive, popup, etc.),
+		// purge entire cache and Cloudflare because it affects all associated posts sitewide.
+		if ( 'elementor_library' === $post_type || isset( $_REQUEST['elementor-template-type'] ) || isset( $_REQUEST['elementor_library'] ) ) {
+			\WPPE\Cache\DiskCache::purge_entire_cache();
+			$cf = \WPPE\Cloudflare\CloudflareFree::get_instance();
+			if ( $cf->is_configured() ) {
+				$cf->purge_everything();
+			}
+			Logger::info( sprintf( 'Elementor saved Theme Builder template #%d (%s). Entire cache purged and Cloudflare synchronized.', $post_id, get_the_title( $post_id ) ) );
+		} else {
+			\WPPE\Cache\DiskCache::purge_post_cache( $post_id );
+			Logger::info( sprintf( 'Elementor saved post #%d. Post cache purged and Cloudflare sync queued.', $post_id ) );
+		}
 	}
 
 	/**
@@ -199,6 +212,10 @@ class ElementorCompat {
 	 * @return array
 	 */
 	public function filter_elementor_experiments( array $features ): array {
+		if ( ! is_array( $features ) ) {
+			return (array) $features;
+		}
+
 		$settings = Settings::get_instance();
 		if ( ! $settings->get( 'elementor_auto_enable_experiments', true ) ) {
 			return $features;

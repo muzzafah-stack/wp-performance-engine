@@ -25,42 +25,45 @@ class Plugin {
 	 * Main bootstrap routine.
 	 */
 	private function bootstrap(): void {
-		// Initialize failsafe first.
+		// Initialize failsafe error handlers.
 		Failsafe::register();
 
 		// Check if failsafe is triggered.
-		if ( Failsafe::is_triggered() ) {
-			return;
-		}
+		$is_failsafe = Failsafe::is_triggered();
 
 		// Initialize Settings.
 		$settings = Settings::get_instance();
 
-		// Load core services.
+		// Load core services (Site profiling, Arbiter, Telemetry).
 		$this->services['site_profile'] = \WPPE\Detection\SiteProfile::get_instance();
 		$this->services['arbiter']      = \WPPE\Arbitration\Arbiter::get_instance();
 		$this->services['telemetry']    = \WPPE\Monitoring\Telemetry::get_instance();
 
-		// Load optimization engines.
-		$this->services['cache']        = \WPPE\Cache\DiskCache::get_instance();
-		$this->services['script']       = \WPPE\Script\ScriptDelay::get_instance();
-		$this->services['lcp']          = \WPPE\LCP\LCPPriority::get_instance();
-		$this->services['speculation']  = \WPPE\Speculation\SpeculationRules::get_instance();
-		$this->services['database']     = \WPPE\Database\DbHousekeeping::get_instance();
+		// Only load runtime optimization engines if failsafe is NOT triggered.
+		if ( ! $is_failsafe ) {
+			// Load optimization engines.
+			$this->services['cache']        = \WPPE\Cache\DiskCache::get_instance();
+			$this->services['script']       = \WPPE\Script\ScriptDelay::get_instance();
+			$this->services['lcp']          = \WPPE\LCP\LCPPriority::get_instance();
+			$this->services['speculation']  = \WPPE\Speculation\SpeculationRules::get_instance();
+			$this->services['database']     = \WPPE\Database\DbHousekeeping::get_instance();
 
-		// Load integration/compatibility layers.
-		$this->services['elementor']    = \WPPE\Elementor\ElementorCompat::get_instance();
-		$this->services['cloudflare']   = \WPPE\Cloudflare\CloudflareFree::get_instance();
-		$this->services['flyingpress']  = \WPPE\Compatibility\FlyingPressCompat::get_instance();
-		$this->services['perfmatters']  = \WPPE\Compatibility\PerfmattersCompat::get_instance();
-		$this->services['salesloo']     = \WPPE\Compatibility\SaleslooCompat::get_instance();
+			// Load integration/compatibility layers.
+			$this->services['elementor']    = \WPPE\Elementor\ElementorCompat::get_instance();
+			$this->services['cloudflare']   = \WPPE\Cloudflare\CloudflareFree::get_instance();
+			$this->services['flyingpress']  = \WPPE\Compatibility\FlyingPressCompat::get_instance();
+			$this->services['perfmatters']  = \WPPE\Compatibility\PerfmattersCompat::get_instance();
+			$this->services['salesloo']     = \WPPE\Compatibility\SaleslooCompat::get_instance();
+		} else {
+			Logger::warning( 'WP Performance Engine Failsafe is triggered: frontend optimization engines are temporarily paused. Admin dashboard remains fully operational.' );
+		}
 
 		// Initialize WP-CLI commands if running CLI.
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			\WPPE\Cli\CliCommands::register();
 		}
 
-		// Initialize Admin Dashboard.
+		// Initialize Admin Dashboard (ALWAYS in admin context, even in failsafe mode).
 		if ( is_admin() ) {
 			$this->services['admin'] = \WPPE\Admin\Dashboard::get_instance();
 		}

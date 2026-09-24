@@ -3,7 +3,7 @@
  * Plugin Name: WP Performance Engine
  * Plugin URI: https://github.com/muzzafah-stack
  * Description: Adaptive WordPress Performance & Optimization Engine with Elementor & Pro Elements optimizer, intelligent arbitration, HTML caching, script delay, speculation rules, and Cloudflare integration.
- * Version: 1.4.1
+ * Version: 1.4.2
  * Author: Hipnolink Digital Team
  * Author URI: https://hipnolink.com
  * License: GPL2 or later
@@ -36,7 +36,7 @@ if ( class_exists( 'Soderlind\WordPress\GitHubUpdater' ) ) {
 
 
 // Define plugin constants.
-define( 'WPPE_VERSION', '1.4.1' );
+define( 'WPPE_VERSION', '1.4.2' );
 define( 'WPPE_PLUGIN_FILE', __FILE__ );
 define( 'WPPE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPPE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -52,4 +52,8 @@ register_activation_hook( __FILE__, array( '\WPPE\Core\Plugin', 'activate' ) );
 register_deactivation_hook( __FILE__, array( '\WPPE\Core\Plugin', 'deactivate' ) );
 
 // Bootstrap the plugin.
-add_action( 'plugins_loaded', array( '\WPPE\Core\Plugin', 'get_instance' ) );
+if ( did_action( 'plugins_loaded' ) ) {
+	\WPPE\Core\Plugin::get_instance();
+} else {
+	add_action( 'plugins_loaded', array( '\WPPE\Core\Plugin', 'get_instance' ), 5 );
+}

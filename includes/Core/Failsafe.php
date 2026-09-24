@@ -32,12 +32,27 @@ class Failsafe {
 	}
 
 	/**
+	 * Get current count of recorded errors within the active time window.
+	 */
+	public static function get_error_count(): int {
+		$errors = get_transient( 'wppe_error_count' );
+		if ( ! is_array( $errors ) ) {
+			return 0;
+		}
+		$now = time();
+		$active_errors = array_filter( $errors, function( $timestamp ) use ( $now ) {
+			return ( $now - $timestamp ) < self::TIME_WINDOW;
+		});
+		return count( $active_errors );
+	}
+
+	/**
 	 * Reset the failsafe state.
 	 */
 	public static function reset(): void {
 		delete_transient( 'wppe_failsafe_triggered' );
 		delete_transient( 'wppe_error_count' );
-		Logger::info( 'Failsafe state manually reset.' );
+		Logger::info( 'Failsafe state manually reset. All optimization engines restored.' );
 	}
 
 	/**

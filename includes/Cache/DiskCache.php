@@ -263,59 +263,61 @@ class DiskCache {
 	}
 
 	/**
-	 * Purge a specific URL cache.
+	 * Purge a specific URL cache statically or via instance.
 	 */
-	public function purge_url( string $url ): void {
-		$key = $this->get_cache_key( $url );
-		$file = $this->get_cache_file_path( $key );
+	public static function purge_url_static( string $url ): void {
+		$instance = self::get_instance();
+		$key = $instance->get_cache_key( $url );
+		$file = $instance->get_cache_file_path( $key );
 		if ( file_exists( $file ) ) {
-			unlink( $file );
+			@unlink( $file );
 			Logger::info( sprintf( 'Purged cache for URL: %s', $url ) );
 		}
 	}
 
 	/**
-	 * Purge cache when a post is saved or updated.
+	 * Purge a specific URL cache.
 	 */
-	public function purge_post_cache( int $post_id, \WP_Post $post, bool $update ): void {
+	public function purge_url( string $url ): void {
+		self::purge_url_static( $url );
+	}
+
+	/**
+	 * Purge cache when a post is saved or updated.
+	 * Supports call with 1, 2, or 3 arguments (save_post hook or programmatic/Elementor calls).
+	 *
+	 * @param int           $post_id Post ID.
+	 * @param \WP_Post|null $post    Post object (optional).
+	 * @param bool          $update  Whether existing post is updated (optional, defaults to true).
+	 */
+	public static function purge_post_cache( int $post_id, ?\WP_Post $post = null, bool $update = true ): void {
 		// Bypass revisions and autosaves.
 		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
 			return;
 		}
 
-		// Avoid double purge on update.
-		if ( ! $update ) {
-			return;
-		}
-
 		$permalink = get_permalink( $post_id );
 		if ( $permalink ) {
-			$this->purge_url( $permalink );
+			self::purge_url_static( $permalink );
 			// Purge the homepage.
-			$this->purge_url( home_url( '/' ) );
+			self::purge_url_static( home_url( '/' ) );
 
 			// Trigger Cloudflare and FlyingPress purge synchronization.
 			do_action( 'wppe_purge_post', $post_id, $permalink );
 		}
 	}
 
-	public function purge_post_cache_on_delete( int $post_id ): void {
-		$permalink = get_permalink( $post_id );
-		if ( $permalink ) {
-			$this->purge_url( $permalink );
-			$this->purge_url( home_url( '/' ) );
-			do_action( 'wppe_purge_post', $post_id, $permalink );
-		}
+	public static function purge_post_cache_on_delete( int $post_id ): void {
+		self::purge_post_cache( $post_id );
 	}
 
 	/**
 	 * Purge cache when comment changes.
 	 */
 	public function purge_on_comment_change( string $new_status, string $old_status, \WP_Comment $comment ): void {
-		$post_id = $comment->comment_post_ID;
-		$permalink = get_permalink( $post_id );
-		if ( $permalink ) {
-			$this->purge_url( $permalink );
+		$post_id = $comment->comment_post_ID ?? 0;
+		if ( $post_id > 0 ) {
+			self::purge_post_cache( (int) $post_id );
 		}
 	}
 
