@@ -34,10 +34,10 @@ class Settings {
 		'elementor_optimize_google_fonts'  => true,
 		'elementor_remove_fa4_shim'        => true,
 		'elementor_eicons_optimization'    => true,
-		'elementor_smart_script_delay'     => true,
-		'elementor_instant_mobile_menu'    => true,
+		'elementor_smart_script_delay'     => false,
+		'elementor_instant_mobile_menu'    => false,
 		'elementor_disable_telemetry'      => true,
-		'elementor_auto_enable_experiments'=> true,
+		'elementor_auto_enable_experiments'=> false,
 	];
 
 	private array $encrypted_fields = [

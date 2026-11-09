@@ -743,13 +743,13 @@ class Dashboard {
 							</div>
 
 							<div class="wppe-form-row">
-								<input type="checkbox" name="elementor_smart_script_delay" id="elementor_smart_script_delay" <?php checked( $settings->get( 'elementor_smart_script_delay', true ) ); ?> />
+								<input type="checkbox" name="elementor_smart_script_delay" id="elementor_smart_script_delay" <?php checked( $settings->get( 'elementor_smart_script_delay', false ) ); ?> />
 								<label style="display:inline;" for="elementor_smart_script_delay"><strong>Smart Idle Script Hydration (INP & TBT Booster)</strong></label>
 								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Defers heavy Elementor frontend JavaScript execution to browser idle time (requestIdleCallback) or user interaction. Reduces Total Blocking Time (TBT) to near 0ms without breaking layouts.</p>
 							</div>
 
 							<div class="wppe-form-row">
-								<input type="checkbox" name="elementor_instant_mobile_menu" id="elementor_instant_mobile_menu" <?php checked( $settings->get( 'elementor_instant_mobile_menu', true ) ); ?> />
+								<input type="checkbox" name="elementor_instant_mobile_menu" id="elementor_instant_mobile_menu" <?php checked( $settings->get( 'elementor_instant_mobile_menu', false ) ); ?> />
 								<label style="display:inline;" for="elementor_instant_mobile_menu"><strong>Instant Mobile Hamburger Menu Fallback</strong></label>
 								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Injects a micro vanilla JS click handler ensuring mobile hamburger navigation menus open instantly with 0 latency even before full Elementor scripts finish hydrating.</p>
 							</div>
@@ -779,7 +779,7 @@ class Dashboard {
 							</div>
 
 							<div class="wppe-form-row">
-								<input type="checkbox" name="elementor_auto_enable_experiments" id="elementor_auto_enable_experiments" <?php checked( $settings->get( 'elementor_auto_enable_experiments', true ) ); ?> />
+								<input type="checkbox" name="elementor_auto_enable_experiments" id="elementor_auto_enable_experiments" <?php checked( $settings->get( 'elementor_auto_enable_experiments', false ) ); ?> />
 								<label style="display:inline;" for="elementor_auto_enable_experiments"><strong>Auto-Enable Native Performance Experiments</strong></label>
 								<p class="description" style="margin-left: 24px; color: var(--wppe-text-light); font-size: 13px;">Automatically defaults Elementor core experiments (Optimized DOM, Asset Loading, CSS Loading, SVG Icons, Lazyload) to active via internal code filters.</p>
 							</div>

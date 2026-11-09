@@ -16,14 +16,15 @@ class DiskCache {
 	private bool $is_buffering = false;
 
 	private function __construct() {
-		// Serve cache as early as possible.
-		add_action( 'plugins_loaded', array( $this, 'serve_cache' ), 1 );
+		// Serve cache after the main query is available but before the theme renders.
+		add_action( 'template_redirect', array( $this, 'serve_cache' ), 9995 );
 
 		// Capture output.
-		add_action( 'template_redirect', array( $this, 'start_buffer' ), 9999 );
+		add_action( 'template_redirect', array( $this, 'start_buffer' ), 9996 );
 
 		// Purge hooks.
 		add_action( 'save_post', array( $this, 'purge_post_cache' ), 10, 3 );
+		add_action( 'post_updated', array( $this, 'purge_old_post_permalink' ), 10, 3 );
 		add_action( 'delete_post', array( $this, 'purge_post_cache_on_delete' ) );
 		add_action( 'transition_comment_status', array( $this, 'purge_on_comment_change' ), 10, 3 );
 		add_action( 'switch_theme', array( $this, 'purge_entire_cache' ) );
@@ -212,6 +213,7 @@ class DiskCache {
 		}
 
 		$this->is_buffering = true;
+		header( 'X-WPPE-Cache: MISS' );
 		ob_start( array( $this, 'cache_output' ) );
 	}
 
@@ -258,7 +260,6 @@ class DiskCache {
 			}
 		}
 
-		header( 'X-WPPE-Cache: MISS' );
 		return $html;
 	}
 
@@ -297,13 +298,83 @@ class DiskCache {
 		}
 
 		$permalink = get_permalink( $post_id );
-		if ( $permalink ) {
-			self::purge_url_static( $permalink );
-			// Purge the homepage.
-			self::purge_url_static( home_url( '/' ) );
+		if ( ! $permalink ) {
+			return;
+		}
 
-			// Trigger Cloudflare and FlyingPress purge synchronization.
-			do_action( 'wppe_purge_post', $post_id, $permalink );
+		$post_object = $post instanceof \WP_Post ? $post : ( function_exists( 'get_post' ) ? get_post( $post_id ) : null );
+		$urls = [ $permalink, home_url( '/' ) ];
+
+		if ( $post_object ) {
+			$post_type = get_post_type( $post_id );
+
+			// Post type archives, author archives, and date archives can also contain this post.
+			if ( function_exists( 'get_post_type_archive_link' ) ) {
+				$archive_url = get_post_type_archive_link( $post_type );
+				if ( $archive_url ) {
+					$urls[] = $archive_url;
+				}
+			}
+
+			if ( function_exists( 'get_author_posts_url' ) && ! empty( $post_object->post_author ) ) {
+				$urls[] = get_author_posts_url( (int) $post_object->post_author );
+			}
+
+			if ( 'post' === $post_type && ! empty( $post_object->post_date ) ) {
+				$date_parts = explode( '-', substr( (string) $post_object->post_date, 0, 10 ) );
+				if ( 3 === count( $date_parts ) && ctype_digit( $date_parts[0] ) && ctype_digit( $date_parts[1] ) && ctype_digit( $date_parts[2] ) ) {
+					$year  = (int) $date_parts[0];
+					$month = (int) $date_parts[1];
+					$day   = (int) $date_parts[2];
+					if ( function_exists( 'get_year_link' ) ) {
+						$urls[] = get_year_link( $year );
+					}
+					if ( function_exists( 'get_month_link' ) ) {
+						$urls[] = get_month_link( $year, $month );
+					}
+					if ( function_exists( 'get_day_link' ) ) {
+						$urls[] = get_day_link( $year, $month, $day );
+					}
+				}
+			}
+
+			// Invalidate taxonomy archives that list the updated post.
+			if ( function_exists( 'get_object_taxonomies' ) && function_exists( 'wp_get_object_terms' ) && function_exists( 'get_term_link' ) ) {
+				$taxonomies = get_object_taxonomies( $post_type, 'names' );
+				if ( ! empty( $taxonomies ) ) {
+					$terms = wp_get_object_terms( $post_id, $taxonomies );
+					if ( ! is_wp_error( $terms ) && is_array( $terms ) ) {
+						foreach ( $terms as $term ) {
+							$term_url = get_term_link( $term );
+							if ( ! is_wp_error( $term_url ) ) {
+								$urls[] = $term_url;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		foreach ( array_unique( array_filter( $urls ) ) as $url ) {
+			self::purge_url_static( $url );
+			// Synchronize every affected URL with configured external cache providers.
+			do_action( 'wppe_purge_post', $post_id, $url );
+		}
+	}
+
+	/**
+	 * Purge the previous permalink when a post slug or permalink structure changes.
+	 */
+	public function purge_old_post_permalink( int $post_id, $post_after, $post_before ): void {
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) || ! $post_before ) {
+			return;
+		}
+
+		$old_url = get_permalink( $post_before );
+		$new_url = $post_after ? get_permalink( $post_after ) : '';
+		if ( $old_url && $old_url !== $new_url ) {
+			self::purge_url_static( $old_url );
+			do_action( 'wppe_purge_post', $post_id, $old_url );
 		}
 	}
 

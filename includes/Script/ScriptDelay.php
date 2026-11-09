@@ -79,7 +79,7 @@ class ScriptDelay {
 	 */
 	public function classify_script( string $src_or_content ): string {
 		$settings = Settings::get_instance();
-		$elementor_smart_delay = (bool) $settings->get( 'elementor_smart_script_delay', true );
+		$elementor_smart_delay = (bool) $settings->get( 'elementor_smart_script_delay', false );
 
 		// Auto exclusions list (navigation-critical, accessibility, forms, WooCommerce, cookies, Theme Builder).
 		$critical_keywords = [

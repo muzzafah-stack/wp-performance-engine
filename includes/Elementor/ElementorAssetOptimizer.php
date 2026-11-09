@@ -2,6 +2,7 @@
 namespace WPPE\Elementor;
 
 use WPPE\Core\Settings;
+use WPPE\Arbitration\Arbiter;
 use WPPE\Core\Logger;
 
 // Prevent direct access.
@@ -35,7 +36,8 @@ class ElementorAssetOptimizer {
 	 */
 	public function is_enabled(): bool {
 		$settings = Settings::get_instance();
-		return (bool) $settings->get( 'elementor_optimize_assets', true );
+		return (bool) $settings->get( 'elementor_optimize_assets', true )
+			&& Arbiter::get_instance()->is_authorized_owner( 'elementor_optimizer' );
 	}
 
 	/**
@@ -159,6 +161,12 @@ class ElementorAssetOptimizer {
 
 		$post_id = get_the_ID();
 		if ( ! $post_id ) {
+			return;
+		}
+
+		// Theme Builder output can come from separate template posts, not this page's _elementor_data.
+		// Keep widget assets intact when Pro/Theme Builder is active rather than risk breaking global templates.
+		if ( $compat->is_pro_elements_active() || $compat->is_elementor_pro_active() ) {
 			return;
 		}
 

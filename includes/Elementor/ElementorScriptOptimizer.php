@@ -2,6 +2,7 @@
 namespace WPPE\Elementor;
 
 use WPPE\Core\Settings;
+use WPPE\Arbitration\Arbiter;
 use WPPE\Core\Logger;
 
 // Prevent direct access.
@@ -30,7 +31,8 @@ class ElementorScriptOptimizer {
 	 */
 	public function is_enabled(): bool {
 		$settings = Settings::get_instance();
-		return (bool) $settings->get( 'elementor_smart_script_delay', true );
+		return (bool) $settings->get( 'elementor_smart_script_delay', false )
+			&& Arbiter::get_instance()->is_authorized_owner( 'elementor_optimizer' );
 	}
 
 	/**
@@ -39,7 +41,7 @@ class ElementorScriptOptimizer {
 	 */
 	public function inject_fast_mobile_menu_script(): void {
 		$settings = Settings::get_instance();
-		if ( ! $settings->get( 'elementor_instant_mobile_menu', true ) ) {
+		if ( ! $settings->get( 'elementor_instant_mobile_menu', false ) || ! Arbiter::get_instance()->is_authorized_owner( 'elementor_optimizer' ) ) {
 			return;
 		}
 

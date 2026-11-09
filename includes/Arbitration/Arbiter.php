@@ -130,7 +130,7 @@ class Arbiter {
 				if ( ! $profile['plugins']['elementor'] ) {
 					return self::OWNER_DISABLED;
 				}
-				if ( $settings->get( 'elementor_optimize_assets', true ) || $settings->get( 'elementor_smart_script_delay', true ) ) {
+				if ( $settings->get( 'elementor_optimize_assets', true ) || $settings->get( 'elementor_optimize_dom', true ) || $settings->get( 'elementor_smart_script_delay', false ) || $settings->get( 'elementor_instant_mobile_menu', false ) ) {
 					return self::OWNER_SELF;
 				}
 				return self::OWNER_DISABLED;

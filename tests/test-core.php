@@ -76,6 +76,7 @@ namespace {
 		return date( 'Y-m-d H:i:s' );
 	}
 	function add_action( $hook, $callback, $priority = 10, $accepted_args = 1 ) {
+		$GLOBALS['mock_actions'][] = [ $hook, $callback, $priority, $accepted_args ];
 		return true;
 	}
 	function add_filter( $hook, $callback, $priority = 10, $accepted_args = 1 ) {
@@ -85,6 +86,9 @@ namespace {
 		return $value;
 	}
 	function do_action( $hook, ...$args ) {
+		if ( 'wppe_purge_post' === $hook ) {
+			$GLOBALS['mock_purge_urls'][] = $args[1] ?? '';
+		}
 		return true;
 	}
 	function wp_parse_url( $url ) {
@@ -114,6 +118,24 @@ namespace {
 	function get_post_type( $post = null ) {
 		return $GLOBALS['mock_post_type'] ?? 'post';
 	}
+	function wp_is_post_revision( $post_id ) { return false; }
+	function wp_is_post_autosave( $post_id ) { return false; }
+	function get_post( $post_id ) {
+		return (object) [ 'ID' => $post_id, 'post_author' => 7, 'post_date' => '2026-11-09 10:00:00' ];
+	}
+	function get_permalink( $post_id ) {
+		if ( is_object( $post_id ) && isset( $post_id->post_name ) ) { return 'https://example.com/' . $post_id->post_name . '/'; }
+		return 'https://example.com/article/';
+	}
+	function home_url( $path = '/' ) { return 'https://example.com' . $path; }
+	function get_post_type_archive_link( $post_type ) { return 'https://example.com/articles/'; }
+	function get_author_posts_url( $author_id ) { return 'https://example.com/author/' . $author_id . '/'; }
+	function get_object_taxonomies( $post_type, $output = 'names' ) { return [ 'category' ]; }
+	function wp_get_object_terms( $post_id, $taxonomies ) { return [ (object) [ 'term_id' => 5, 'name' => 'News' ] ]; }
+	function get_term_link( $term ) { return 'https://example.com/category/news/'; }
+	function get_year_link( $year ) { return 'https://example.com/' . $year . '/'; }
+	function get_month_link( $year, $month ) { return sprintf( 'https://example.com/%04d/%02d/', $year, $month ); }
+	function get_day_link( $year, $month, $day ) { return sprintf( 'https://example.com/%04d/%02d/%02d/', $year, $month, $day ); }
 	function get_the_ID() {
 		return 42;
 	}
@@ -265,6 +287,7 @@ namespace {
 	$script_delay = ScriptDelay::get_instance();
 	assert_test( 'Script Classification (Critical jQuery)', $script_delay->classify_script( 'jquery.min.js' ) === ScriptDelay::CLASSIFICATION_CRITICAL );
 	assert_test( 'Script Classification (Analytics)', $script_delay->classify_script( 'google-analytics.com/analytics.js' ) === ScriptDelay::CLASSIFICATION_THIRD_PARTY );
+	assert_test( 'Script Classification (Elementor frontend stays critical by default)', $script_delay->classify_script( 'elementor-frontend.min.js' ) === ScriptDelay::CLASSIFICATION_CRITICAL );
 
 	// Test 4: LCP Priority Injection
 	$lcp = LCPPriority::get_instance();
@@ -415,6 +438,37 @@ namespace {
 	assert_test( 'ElementorCompat: Diagnostics includes e_element_cache', array_key_exists( 'e_element_cache', $diag['experiments'] ) );
 	assert_test( 'ElementorCompat: Diagnostics includes e_optimized_control_loading', array_key_exists( 'e_optimized_control_loading', $diag['experiments'] ) );
 
-	echo "=== All Tests Passed Successfully (24/24) ===\n";
+	// Additional regression checks for the latest WPPE fixes.
+	$buffer_priority = null;
+	foreach ( $GLOBALS['mock_actions'] as $registered_action ) {
+		if ( 'template_redirect' === $registered_action[0] && is_array( $registered_action[1] ) && $registered_action[1][0] === $cache && 'start_buffer' === $registered_action[1][1] ) {
+			$buffer_priority = $registered_action[2];
+		}
+	}
+	assert_test( 'DiskCache: Outer buffer starts before HTML optimizers', 9996 === $buffer_priority );
+	$serve_cache_priority = null;
+	foreach ( $GLOBALS['mock_actions'] as $registered_action ) {
+		if ( 'template_redirect' === $registered_action[0] && is_array( $registered_action[1] ) && $registered_action[1][0] === $cache && 'serve_cache' === $registered_action[1][1] ) {
+			$serve_cache_priority = $registered_action[2];
+		}
+	}
+	assert_test( 'DiskCache: Cached response is checked after main query and before render', 9995 === $serve_cache_priority );
+	assert_test( 'Elementor: Smart script delay is opt-in by default', false === $script_opt->is_enabled() );
+	assert_test( 'Elementor: Auto-enable experiments is opt-in by default', false === \WPPE\Core\Settings::get_instance()->get( 'elementor_auto_enable_experiments' ) );
+	\WPPE\Core\Settings::get_instance()->set( 'elementor_optimize_assets', false );
+	\WPPE\Core\Settings::get_instance()->set( 'elementor_optimize_dom', false );
+	\WPPE\Core\Settings::get_instance()->set( 'elementor_smart_script_delay', false );
+	\WPPE\Core\Settings::get_instance()->set( 'elementor_instant_mobile_menu', true );
+	assert_test( 'Arbitration: Standalone mobile menu option retains ownership', \WPPE\Arbitration\Arbiter::get_instance()->is_authorized_owner( 'elementor_optimizer' ) );
+	$GLOBALS['mock_purge_urls'] = [];
+	DiskCache::purge_post_cache( 42 );
+	assert_test( 'DiskCache: Post update invalidates related archive URLs', in_array( 'https://example.com/category/news/', $GLOBALS['mock_purge_urls'], true ) && in_array( 'https://example.com/author/7/', $GLOBALS['mock_purge_urls'], true ) && in_array( 'https://example.com/2026/11/09/', $GLOBALS['mock_purge_urls'], true ) );
+	$GLOBALS['mock_purge_urls'] = [];
+	$old_post = (object) [ 'post_name' => 'old-slug' ];
+	$new_post = (object) [ 'post_name' => 'new-slug' ];
+	$cache->purge_old_post_permalink( 42, $new_post, $old_post );
+	assert_test( 'DiskCache: Old permalink is invalidated after slug change', in_array( 'https://example.com/old-slug/', $GLOBALS['mock_purge_urls'], true ) );
+
+	echo "=== All Tests Passed Successfully (additional regression checks included) ===\n";
 	exit( 0 );
 }

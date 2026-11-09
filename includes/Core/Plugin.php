@@ -25,6 +25,8 @@ class Plugin {
 	 * Main bootstrap routine.
 	 */
 	private function bootstrap(): void {
+		add_filter( 'cron_schedules', array( self::class, 'register_cron_schedules' ) );
+		add_action( 'init', array( self::class, 'ensure_cron_events' ), 20 );
 		// Initialize failsafe error handlers.
 		Failsafe::register();
 
@@ -73,6 +75,8 @@ class Plugin {
 	 * Plugin activation routine.
 	 */
 	public static function activate(): void {
+		// Activation can run before the normal bootstrap callback; register the interval first.
+		add_filter( 'cron_schedules', array( self::class, 'register_cron_schedules' ) );
 		// Init settings default options.
 		$settings = Settings::get_instance();
 		$settings->load();
@@ -88,22 +92,51 @@ class Plugin {
 		if ( ! wp_next_scheduled( 'wppe_gc_cron' ) ) {
 			wp_schedule_event( time(), 'twicedaily', 'wppe_gc_cron' );
 		}
-		if ( ! wp_next_scheduled( 'wppe_cf_queue_cron' ) ) {
+		if ( self::is_cloudflare_purge_configured() && ! wp_next_scheduled( 'wppe_cf_queue_cron' ) ) {
 			wp_schedule_event( time(), 'every_minute', 'wppe_cf_queue_cron' );
 		}
 
-		// Setup custom cron intervals.
-		add_filter( 'cron_schedules', function( $schedules ) {
-			if ( ! isset( $schedules['every_minute'] ) ) {
-				$schedules['every_minute'] = array(
-					'interval' => 60,
-					'display'  => esc_html__( 'Every Minute', 'wp-performance-engine' ),
-				);
-			}
-			return $schedules;
-		});
-
 		Logger::info( 'Plugin activated successfully.' );
+	}
+
+	/**
+	 * Register the custom interval used by the Cloudflare purge queue.
+	 */
+	public static function register_cron_schedules( array $schedules ): array {
+		if ( ! isset( $schedules['every_minute'] ) ) {
+			$schedules['every_minute'] = array(
+				'interval' => 60,
+				'display'  => function_exists( 'esc_html__' ) ? esc_html__( 'Every Minute', 'wp-performance-engine' ) : 'Every Minute',
+			);
+		}
+		return $schedules;
+	}
+
+	/**
+	 * Ensure scheduled tasks exist after plugin updates or missed activation scheduling.
+	 */
+	public static function ensure_cron_events(): void {
+		if ( ! wp_next_scheduled( 'wppe_gc_cron' ) ) {
+			wp_schedule_event( time() + 60, 'twicedaily', 'wppe_gc_cron' );
+		}
+		if ( self::is_cloudflare_purge_configured() ) {
+			if ( ! wp_next_scheduled( 'wppe_cf_queue_cron' ) ) {
+				wp_schedule_event( time() + 60, 'every_minute', 'wppe_cf_queue_cron' );
+			}
+		} elseif ( wp_next_scheduled( 'wppe_cf_queue_cron' ) ) {
+			// Avoid waking WP-Cron every minute when Cloudflare API purging is not configured.
+			wp_clear_scheduled_hook( 'wppe_cf_queue_cron' );
+		}
+	}
+
+	/**
+	 * Check whether the Cloudflare purge worker has usable configuration.
+	 */
+	private static function is_cloudflare_purge_configured(): bool {
+		if ( ! class_exists( '\WPPE\Cloudflare\CloudflareFree' ) ) {
+			return false;
+		}
+		return \WPPE\Cloudflare\CloudflareFree::get_instance()->is_configured();
 	}
 
 	/**

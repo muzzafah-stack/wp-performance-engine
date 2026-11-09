@@ -2,6 +2,7 @@
 namespace WPPE\Elementor;
 
 use WPPE\Core\Settings;
+use WPPE\Arbitration\Arbiter;
 use WPPE\Core\Logger;
 
 // Prevent direct access.
@@ -29,7 +30,7 @@ class ElementorDomOptimizer {
 	 */
 	public function should_optimize(): bool {
 		$settings = Settings::get_instance();
-		if ( ! $settings->get( 'elementor_optimize_dom', true ) ) {
+		if ( ! $settings->get( 'elementor_optimize_dom', true ) || ! Arbiter::get_instance()->is_authorized_owner( 'elementor_optimizer' ) ) {
 			return false;
 		}
 

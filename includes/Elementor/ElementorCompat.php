@@ -217,7 +217,7 @@ class ElementorCompat {
 		}
 
 		$settings = Settings::get_instance();
-		if ( ! $settings->get( 'elementor_auto_enable_experiments', true ) ) {
+		if ( ! $settings->get( 'elementor_auto_enable_experiments', false ) ) {
 			return $features;
 		}
 
